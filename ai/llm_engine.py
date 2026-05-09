@@ -168,6 +168,20 @@ def handle_special_command(text: str) -> str | None:
         add_craft_note, add_user_note
     )
     from ai.memory_retriever import get_current_version
+    from config import LLM_CONFIG, LLM_PROVIDER
+
+    # 模型信息查询（宽松匹配）
+    if "版本" in text:
+        # 检查是否是询问模型/助手版本
+        if ("你" in text or "助手" in text or "模型" in text or "AI" in text):
+            llm_config = LLM_CONFIG.get(LLM_PROVIDER, {})
+            return (
+                f"🎮 当前配置：\n"
+                f"· 模型: {LLM_PROVIDER}\n"
+                f"· 具体型号: {llm_config.get('model', '未知')}\n"
+                f"· 支持版本: {get_current_version()}\n"
+                f"· 状态: {'已配置API Key' if llm_config.get('api_key', '').strip() and not llm_config.get('api_key', '').startswith('YOUR_') else '未配置API Key'}"
+            )
 
     if text.startswith("初始化") and "赛季总结：" in text:
         parts   = text.split("赛季总结：", 1)

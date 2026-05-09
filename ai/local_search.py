@@ -355,6 +355,91 @@ def _find_urls(text: str) -> list[str]:
 # 主搜索函数
 # ──────────────────────────────────────────────
 
+def _search_equipment(keywords: list[str]) -> list[dict]:
+    """搜索装备库中的装备数据"""
+    try:
+        from memory.equipment_storage import EquipmentStorage
+        storage = EquipmentStorage()
+        results = []
+        
+        # 对每个关键词进行搜索
+        for kw in keywords:
+            equip_list = storage.search_equipment(kw)
+            for equip in equip_list:
+                if equip not in results:
+                    results.append(equip)
+        
+        return results
+    except Exception:
+        return []
+
+
+def _get_price_info(item_name: str, affixes: list = None) -> str:
+    """获取装备价格信息"""
+    try:
+        from price_checker.trade_api import PriceChecker
+        
+        checker = PriceChecker()
+        message, prices = checker.check_price(item_name, affixes=affixes)
+        
+        if prices and len(prices) > 0:
+            # 按价格从低到高排序
+            sorted_prices = sorted(prices, key=lambda x: float(x.get('price', float('inf'))))
+            
+            lines = []
+            lines.append("     📊 当前市场价格（从低到高）：")
+            
+            # 显示前5个最低价格
+            for i, price in enumerate(sorted_prices[:5], 1):
+                p = price.get('price', 'N/A')
+                c = price.get('currency', 'Chaos')
+                l = price.get('listing', '')
+                lines.append(f"       {i}. {p} {c} - {l}")
+            
+            return '\n'.join(lines)
+        else:
+            return f"     ⚠️ 未找到价格数据 - {message}"
+    except Exception as e:
+        return f"     ⚠️ 价格查询失败: {str(e)[:50]}"
+
+
+def _format_equipment_results(equipment_list: list[dict]) -> str:
+    """格式化装备搜索结果"""
+    if not equipment_list:
+        return ""
+    
+    lines = []
+    lines.append("🔧 装备库检索结果：\n")
+    
+    for equip in equipment_list[:3]:  # 最多显示3个
+        lines.append(f"【ID: {equip['id']}】{equip['name']}")
+        lines.append(f"  ├─ 类型: {equip['type']}")
+        lines.append(f"  ├─ 等级: {equip['level']}")
+        lines.append(f"  ├─ 稀有度: {equip['rarity']}")
+        
+        all_affixes = []
+        if equip['prefixes']:
+            all_affixes.extend(equip['prefixes'])
+            lines.append(f"  ├─ 前缀词缀: {', '.join(equip['prefixes'])}")
+        if equip['suffixes']:
+            all_affixes.extend(equip['suffixes'])
+            lines.append(f"  ├─ 后缀词缀: {', '.join(equip['suffixes'])}")
+        if equip['properties']:
+            props = ', '.join([f"{k}: {v}" for k, v in equip['properties'].items()])
+            lines.append(f"  ├─ 属性: {props}")
+        
+        lines.append(f"  └─ 保存时间: {equip['created_at'][:19]}")
+        
+        # 添加价格查询结果
+        if equip['name']:
+            price_info = _get_price_info(equip['name'], all_affixes)
+            lines.append(price_info)
+        
+        lines.append("")
+    
+    return '\n'.join(lines)
+
+
 def search(question: str, top_k: int = 8) -> str:
     """在本地记忆库中搜索与问题最相关的内容。"""
     keywords = _extract_keywords(question)
@@ -368,8 +453,9 @@ def search(question: str, top_k: int = 8) -> str:
         )
 
     files = _scan_memory_files()
-    if not files:
-        return "📭 记忆库为空，请先运行爬虫同步资讯，或在悬浮窗中手动喂养内容。"
+    
+    # 搜索装备库
+    equip_results = _search_equipment(keywords)
 
     # 对每个文件的每个段落打分
     all_hits = []
@@ -389,12 +475,29 @@ def search(question: str, top_k: int = 8) -> str:
     # 使用智能整合功能
     integrated = _integrate_results(all_hits, keywords)
     
+    # 格式化装备库结果
+    equip_result_text = _format_equipment_results(equip_results)
+    
     # 添加标题和提示
     lines = [f'🔍 本地记忆库检索结果 — 关键词：{" ".join(keywords[:8])}\n']
     lines.append("=" * 50)
     lines.append("")
-    lines.append(integrated)
-    lines.append("")
+    
+    # 先显示装备库结果
+    if equip_result_text:
+        lines.append(equip_result_text)
+        lines.append("")
+    
+    # 再显示普通记忆库结果
+    if integrated.strip():
+        lines.append(integrated)
+        lines.append("")
+    
+    # 如果没有任何结果
+    if not equip_result_text and not integrated.strip():
+        lines.append(_no_match_response(question, keywords))
+        lines.append("")
+    
     lines.append("=" * 50)
     lines.append(
         "💡 以上内容来自本地记忆库搜索。\n"

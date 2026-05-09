@@ -10,7 +10,7 @@ from typing import Dict
 from ai.llm_engine import ask_ai, handle_special_command
 from ai.memory_retriever import set_version_priority, get_current_version
 from utils.memory_manager import export_memory, import_memory
-from config import FLOAT_WINDOW, SUPPORTED_VERSIONS, DEFAULT_SERVER, DEFAULT_LEAGUE
+from config import FLOAT_WINDOW, SUPPORTED_VERSIONS, DEFAULT_SERVER, DEFAULT_LEAGUE, LLM_CONFIG, LLM_PROVIDER
 
 try:
     from price_checker.trade_api import PriceChecker, get_server_list, quick_check
@@ -125,6 +125,19 @@ class POE2FloatWindow:
         )
         self.ver_box.pack(side=tk.LEFT, padx=4)
         ttk.Button(ver_frame, text="切换版本", command=self._switch_version, style="Switch.TButton").pack(side=tk.LEFT, padx=4)
+        
+        # LLM模型选择
+        ttk.Label(ver_frame, text=" | ", style="Ver.TLabel").pack(side=tk.LEFT)
+        ttk.Label(ver_frame, text="模型：", style="Ver.TLabel").pack(side=tk.LEFT)
+        self.llm_var = tk.StringVar(value=LLM_PROVIDER)
+        self.llm_box = ttk.Combobox(
+            ver_frame, textvariable=self.llm_var,
+            values=list(LLM_CONFIG.keys()), state="readonly", width=8,
+            font=("Consolas", 9)
+        )
+        self.llm_box.pack(side=tk.LEFT, padx=4)
+        ttk.Button(ver_frame, text="切换", command=self._switch_llm, style="Switch.TButton").pack(side=tk.LEFT, padx=4)
+        
         # 状态标签
         self.status_var = tk.StringVar(value="就绪")
         ttk.Label(ver_frame, textvariable=self.status_var, style="Ver.TLabel").pack(side=tk.RIGHT, padx=6)
@@ -253,6 +266,23 @@ class POE2FloatWindow:
         from crawler import set_crawler_version
         set_crawler_version(ver)
         self._append_msg("系统", f"✅ 已切换至 {ver} 版本，AI 将优先使用该版本记忆与资讯", tag="system")
+    
+    def _switch_llm(self):
+        """切换LLM模型"""
+        llm_provider = self.llm_var.get()
+        
+        # 更新全局配置
+        import config
+        config.LLM_PROVIDER = llm_provider
+        
+        # 检查是否配置了API Key
+        llm_config = LLM_CONFIG.get(llm_provider, {})
+        api_key = llm_config.get("api_key", "")
+        
+        if api_key.startswith("YOUR_"):
+            self._append_msg("系统", f"⚠️ 已切换至 {llm_provider} 模型，但尚未配置 API Key", tag="system")
+        else:
+            self._append_msg("系统", f"✅ 已切换至 {llm_provider} 模型，当前模型: {llm_config.get('model', '')}", tag="system")
 
     # ──────────────────────────────────────────────
     # 记忆操作
@@ -390,11 +420,9 @@ class POE2FloatWindow:
         for category_name, affixes in affix_categories:
             cat_frame = ttk.LabelFrame(affix_frame, text=category_name, labelanchor=tk.N)
             cat_frame.pack(fill=tk.X, pady=2)
-            cat_frame.config(background="#1a1a2e", foreground="#cccccc")
             
             row_frame = ttk.Frame(cat_frame)
             row_frame.pack(fill=tk.X, padx=4, pady=2)
-            row_frame.config(background="#1a1a2e")
             
             col = 0
             for affix in affixes:
@@ -404,13 +432,11 @@ class POE2FloatWindow:
                     row_frame, text=affix, variable=var,
                     style="Switch.TButton"
                 )
-                chk.config(background="#1a1a2e", foreground="#cccccc")
                 chk.pack(side=tk.LEFT, padx=8, pady=1)
                 col += 1
                 if col >= 3:
                     row_frame = ttk.Frame(cat_frame)
                     row_frame.pack(fill=tk.X, padx=4, pady=2)
-                    row_frame.config(background="#1a1a2e")
                     col = 0
         
         # 自定义词缀输入（高级用户）
@@ -508,7 +534,18 @@ class POE2FloatWindow:
         if "❌" in text:
             self._price_result.insert(tk.END, text)
         else:
-            self._price_result.insert(tk.END, "✅ 截图识别完成！\n\n")
+            # 保存装备数据到记忆库
+            try:
+                from memory.equipment_storage import EquipmentStorage
+                storage = EquipmentStorage()
+                equipment["ocr_text"] = text
+                equip_id = storage.save_equipment(equipment)
+                save_success = f"已保存到装备库 (ID: {equip_id})\n"
+            except Exception as e:
+                save_success = f"⚠️ 保存失败: {e}\n"
+            
+            self._price_result.insert(tk.END, "✅ 截图识别完成！\n")
+            self._price_result.insert(tk.END, save_success + "\n")
             self._price_result.insert(tk.END, "=== 识别的原始文本 ===\n")
             self._price_result.insert(tk.END, text + "\n\n")
             self._price_result.insert(tk.END, "=== 解析结果 ===\n")
@@ -521,13 +558,6 @@ class POE2FloatWindow:
             if equipment.get('name'):
                 self._price_entry.delete(0, tk.END)
                 self._price_entry.insert(0, equipment['name'])
-            
-            # 填充识别到的词缀
-            all_affixes = equipment.get('prefixes', []) + equipment.get('suffixes', [])
-            if all_affixes:
-                self._affix_text.delete("1.0", tk.END)
-                for affix in all_affixes:
-                    self._affix_text.insert(tk.END, affix + "\n")
         
         self._price_result.config(state=tk.DISABLED)
         self._price_result.see(tk.END)
