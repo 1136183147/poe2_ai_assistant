@@ -107,87 +107,101 @@ def _extract_key_info(text: str, keywords: list[str]) -> list[str]:
     return key_infos
 
 
+def _extract_category_info(text: str, keywords: list[str]) -> str:
+    """从爬虫数据中提取分类信息（如装备分类列表）"""
+    # 查找包含关键词的章节
+    sections = re.split(r'\n## ', text)
+    
+    for section in sections:
+        section_lower = section.lower()
+        if any(kw.lower() in section_lower for kw in keywords):
+            # 提取该章节的内容
+            lines = section.split('\n')
+            result_lines = []
+            
+            # 提取标题
+            if lines:
+                result_lines.append(f"## {lines[0].strip()}")
+            
+            # 提取列表项（以 - 或 * 开头，或只有一行文字）
+            for line in lines[1:]:
+                line = line.strip()
+                if not line:
+                    continue
+                # 跳过噪音行
+                if len(line) < 3:
+                    continue
+                # 检查是否是导航垃圾
+                if line.lower() in {'wiki', 'edit', 'content', 'available', 'under', 'cc', 'by-nc-sa', 'unless', 'otherwise', 'noted'}:
+                    continue
+                # 添加到结果
+                if line.startswith(('-', '*', '•')) or (any(c.isalpha() for c in line) and len(line) >= 3):
+                    result_lines.append(line)
+            
+            if len(result_lines) > 1:
+                return '\n'.join(result_lines)
+    
+    return ""
+
+
 def _integrate_results(hits: list[tuple], keywords: list[str]) -> str:
-    """整合搜索结果，提供简洁的总结"""
+    """整合搜索结果，提供简洁精准的总结"""
     lines = []
     
-    # 1. 首先尝试提取表格（只显示有匹配的表格）
-    table_summaries = []
+    # 1. 优先查找 craft 目录下的底材信息（高优先级）
+    craft_results = []
     for score, para, fname, cat, urls in hits:
-        tables = _extract_tables(para)
-        for table in tables:
-            summary = _format_table_summary(table, keywords)
-            if summary.strip():  # 只添加有内容的表格
-                source = f"{cat}/{fname}" if cat != "." else fname
-                table_summaries.append((source, summary))
+        if cat == "craft" and ("chronicles" in fname or "base" in fname):
+            # 提取表格
+            tables = _extract_tables(para)
+            for table in tables:
+                summary = _format_table_summary(table, keywords)
+                if summary.strip():
+                    source = f"{cat}/{fname}"
+                    craft_results.append(('table', source, summary))
+            
+            # 提取分类信息
+            category_info = _extract_category_info(para, keywords)
+            if category_info:
+                craft_results.append(('category', f"{cat}/{fname}", category_info))
     
-    if table_summaries:
-        lines.append("📊 找到相关表格数据：\n")
-        for source, summary in table_summaries[:2]:  # 最多显示2个表格
-            lines.append(f"【{source}】")
-            lines.append(summary)
-            lines.append("")
+    # 2. 如果找到 craft 相关结果，优先显示
+    if craft_results:
+        for result_type, source, content in craft_results:
+            if result_type == 'table':
+                lines.append("📊 底材数据：")
+                lines.append(f"【{source}】")
+                lines.append(content)
+                lines.append("")
+            elif result_type == 'category':
+                lines.append("� 分类信息：")
+                lines.append(content)
+                lines.append("")
+        
+        return '\n'.join(lines)
     
-    # 2. 提取关键信息（过滤时间戳和表格行）
-    key_infos = []
-    seen = set()
+    # 3. 如果没有 craft 结果，查找核心机制中的相关表格
+    core_tables = []
     for score, para, fname, cat, urls in hits:
-        # 跳过 chat_history.json 的内容（避免重复显示搜索历史）
-        if fname == "chat_history.json":
-            continue
-        
-        infos = _extract_key_info(para, keywords)
-        for info in infos:
-            # 过滤时间戳格式的内容
-            if info.startswith("time="):
-                continue
-            # 过滤表格行格式的内容（已在表格中显示）
-            if info.startswith("|") and info.endswith("|"):
-                continue
-            # 去重
-            info_key = info[:50]
-            if info_key not in seen:
-                key_infos.append(info)
-                seen.add(info_key)
-        
-        if len(key_infos) >= 5:
-            break
+        if cat == "core" and fname == "common_mechanic.md":
+            tables = _extract_tables(para)
+            for table in tables:
+                # 只有表格内容包含关键词时才显示
+                all_text = ' '.join(table['headers'] + [' '.join(row) for row in table['rows']]).lower()
+                if any(kw.lower() in all_text for kw in keywords):
+                    summary = _format_table_summary(table, keywords)
+                    if summary.strip():
+                        core_tables.append(summary)
     
-    if key_infos:
-        lines.append("📌 关键信息：\n")
-        for i, info in enumerate(key_infos, 1):
-            lines.append(f"{i}. {info}")
-        lines.append("")
+    if core_tables:
+        lines.append("📊 相关数据：")
+        lines.append("【core/common_mechanic.md】")
+        lines.append(core_tables[0])
+        return '\n'.join(lines)
     
-    # 3. 如果表格和关键信息都很少，显示原始检索结果
-    if not table_summaries and len(key_infos) < 3:
-        lines.append("📋 详细检索结果：\n")
-        lines.append("=" * 50)
-        
-        shown_paras = set()
-        count = 0
-        for score, para, fname, cat, urls in hits:
-            # 跳过 chat_history.json
-            if fname == "chat_history.json":
-                continue
-                
-            para_key = para[:80]
-            if para_key in shown_paras:
-                continue
-            shown_paras.add(para_key)
-            
-            count += 1
-            source = f"{cat}/{fname}" if cat != "." else fname
-            lines.append(f"\n▎来源：【{source}】（匹配度 ★{'★' * min(score // 3, 3)}）")
-            display = para if len(para) <= 400 else para[:400] + "…"
-            lines.append(f"{display}")
-            
-            if count >= 5:
-                break
-        
-        lines.append(f"\n{'=' * 50}")
-    
-    return '\n'.join(lines)
+    # 4. 如果都没有找到，返回简洁提示
+    return "暂无相关信息，请尝试其他关键词或配置 LLM API Key 获取更智能的回答。"
+
 
 
 # ──────────────────────────────────────────────

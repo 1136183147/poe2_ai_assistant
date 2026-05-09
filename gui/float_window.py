@@ -385,9 +385,18 @@ class POE2FloatWindow:
             style="Price.TButton"
         )
         self._ocr_btn.pack(side=tk.LEFT)
+        
+        # 手动输入按钮（作为OCR的备用方案）
+        ttk.Button(
+            ocr_frame, 
+            text="✏️ 手动输入", 
+            command=self._open_manual_input, 
+            style="Price.TButton"
+        ).pack(side=tk.LEFT, padx=4)
+        
         if not HAS_OCR:
-            ttk.Label(ocr_frame, text="（需要安装 pillow 和 pytesseract）", 
-                      background="#111111", foreground="#ff6b6b", font=("Consolas", 8)).pack(side=tk.LEFT, padx=4)
+            ttk.Label(ocr_frame, text="（OCR未安装，可使用手动输入）", 
+                      background="#111111", foreground="#ffaa00", font=("Consolas", 8)).pack(side=tk.LEFT, padx=4)
         
         # 装备名称输入
         name_frame = ttk.Frame(price_win)
@@ -401,55 +410,61 @@ class POE2FloatWindow:
         self._price_entry.pack(side=tk.LEFT)
         self._price_entry.bind("<Return>", lambda e: self._check_price())
         
-        # 词缀选择面板
+        # 装备类型筛选（仿照官方交易界面）
+        type_frame = ttk.Frame(price_win)
+        type_frame.pack(fill=tk.X, padx=8, pady=4)
+        ttk.Label(type_frame, text="类型：", background="#111111", foreground="#aaaacc").pack(side=tk.LEFT)
+        self._item_type_var = tk.StringVar(value="全部")
+        self._item_type_box = ttk.Combobox(
+            type_frame, textvariable=self._item_type_var,
+            values=["全部", "武器", "护甲", "首饰", "武器-剑", "武器-斧", "武器-锤", "武器-匕首", "武器-法杖", "武器-弓"],
+            state="readonly", width=12, font=("Consolas", 9)
+        )
+        self._item_type_box.pack(side=tk.LEFT, padx=4)
+        
+        # 稀有度筛选
+        ttk.Label(type_frame, text="稀有度：", background="#111111", foreground="#aaaacc").pack(side=tk.LEFT)
+        self._rarity_var = tk.StringVar(value="全部")
+        self._rarity_box = ttk.Combobox(
+            type_frame, textvariable=self._rarity_var,
+            values=["全部", "普通", "魔法", "稀有", "传奇"],
+            state="readonly", width=8, font=("Consolas", 9)
+        )
+        self._rarity_box.pack(side=tk.LEFT, padx=4)
+        
+        # 等级范围
+        lvl_frame = ttk.Frame(type_frame)
+        lvl_frame.pack(side=tk.LEFT, padx=4)
+        ttk.Label(lvl_frame, text="等级：", background="#111111", foreground="#aaaacc").pack(side=tk.LEFT)
+        self._min_lvl_entry = tk.Entry(lvl_frame, bg="#1a1a2e", fg="#ffffff", insertbackground="white", 
+                                       relief="flat", font=("Consolas", 9), width=4)
+        self._min_lvl_entry.pack(side=tk.LEFT)
+        ttk.Label(lvl_frame, text="-", background="#111111", foreground="#666666").pack(side=tk.LEFT)
+        self._max_lvl_entry = tk.Entry(lvl_frame, bg="#1a1a2e", fg="#ffffff", insertbackground="white", 
+                                       relief="flat", font=("Consolas", 9), width=4)
+        self._max_lvl_entry.pack(side=tk.LEFT)
+        
+        # 词缀输入区域（仿照官方的词缀搜索）
         affix_frame = ttk.Frame(price_win)
         affix_frame.pack(fill=tk.X, padx=8, pady=4)
         
-        # 词缀分类标签
-        ttk.Label(affix_frame, text="词缀筛选（勾选需要的词缀）：", background="#111111", foreground="#aaaacc").pack(side=tk.TOP, anchor=tk.W)
-        
-        # 词缀分类框架
-        self._affix_vars = {}
-        affix_categories = [
-            ("攻击词缀", ["物理伤害", "攻击速度", "暴击几率", "暴击伤害", "命中", "穿刺"]),
-            ("防御词缀", ["最大生命", "护甲", "闪避", "抗性", "格挡", "每秒生命回复"]),
-            ("法术词缀", ["法术伤害", "魔力", "魔力回复", "施法速度", "技能等级"]),
-            ("通用词缀", ["力量", "敏捷", "智力", "移动速度", "属性", "稀有度"])
-        ]
-        
-        for category_name, affixes in affix_categories:
-            cat_frame = ttk.LabelFrame(affix_frame, text=category_name, labelanchor=tk.N)
-            cat_frame.pack(fill=tk.X, pady=2)
-            
-            row_frame = ttk.Frame(cat_frame)
-            row_frame.pack(fill=tk.X, padx=4, pady=2)
-            
-            col = 0
-            for affix in affixes:
-                var = tk.BooleanVar()
-                self._affix_vars[affix] = var
-                chk = ttk.Checkbutton(
-                    row_frame, text=affix, variable=var,
-                    style="Switch.TButton"
-                )
-                chk.pack(side=tk.LEFT, padx=8, pady=1)
-                col += 1
-                if col >= 3:
-                    row_frame = ttk.Frame(cat_frame)
-                    row_frame.pack(fill=tk.X, padx=4, pady=2)
-                    col = 0
-        
-        # 自定义词缀输入（高级用户）
-        custom_frame = ttk.Frame(affix_frame)
-        custom_frame.pack(fill=tk.X, pady=4)
-        ttk.Label(custom_frame, text="自定义词缀：", background="#111111", foreground="#aaaacc").pack(side=tk.LEFT)
-        self._custom_affix_entry = tk.Entry(
-            custom_frame, bg="#1a1a2e", fg="#ffffff",
+        # 词缀搜索框（类似官方的自由搜索）
+        ttk.Label(affix_frame, text="词缀搜索：", background="#111111", foreground="#aaaacc").pack(side=tk.LEFT)
+        self._affix_entry = tk.Entry(
+            affix_frame, bg="#1a1a2e", fg="#ffffff",
             insertbackground="white", relief="flat",
-            font=("Consolas", 9), bd=2, width=30
+            font=("Consolas", 9), bd=2, width=40,
+            placeholder="输入词缀关键词，如：物理伤害、攻击速度、最大生命"
         )
-        self._custom_affix_entry.pack(side=tk.LEFT, padx=4)
-        ttk.Label(custom_frame, text="（用逗号分隔）", background="#111111", foreground="#666666", font=("Consolas", 8)).pack(side=tk.LEFT)
+        self._affix_entry.pack(side=tk.LEFT, padx=4)
+        
+        # 快速词缀按钮（常用词缀一键添加）
+        quick_affix_frame = ttk.Frame(price_win)
+        quick_affix_frame.pack(fill=tk.X, padx=8, pady=2)
+        quick_affixes = ["物理伤害", "攻击速度", "暴击几率", "最大生命", "施法速度", "技能等级"]
+        for affix in quick_affixes:
+            ttk.Button(quick_affix_frame, text=affix, command=lambda a=affix: self._add_quick_affix(a),
+                      style="Price.TButton").pack(side=tk.LEFT, padx=2)
         
         # 搜索按钮
         btn_frame = ttk.Frame(price_win)
@@ -486,29 +501,132 @@ class POE2FloatWindow:
         price_win.bind("<F9>", lambda e: self._capture_and_recognize())
     
     def _clear_affixes(self):
-        """清空词缀选择"""
-        # 取消所有勾选
-        for var in self._affix_vars.values():
-            var.set(False)
-        # 清空自定义词缀
-        self._custom_affix_entry.delete(0, tk.END)
+        """清空搜索条件"""
+        # 清空装备名称
+        self._price_entry.delete(0, tk.END)
+        # 重置类型和稀有度
+        self._item_type_var.set("全部")
+        self._rarity_var.set("全部")
+        # 清空等级范围
+        self._min_lvl_entry.delete(0, tk.END)
+        self._max_lvl_entry.delete(0, tk.END)
+        # 清空词缀搜索
+        self._affix_entry.delete(0, tk.END)
+    
+    def _add_quick_affix(self, affix):
+        """快速添加常用词缀"""
+        current = self._affix_entry.get()
+        if current:
+            self._affix_entry.insert(tk.END, f", {affix}")
+        else:
+            self._affix_entry.insert(tk.END, affix)
+    
+    def _open_manual_input(self):
+        """打开手动输入装备信息的窗口"""
+        manual_win = tk.Toplevel(self.root)
+        manual_win.title("✏️ 手动输入装备信息")
+        manual_win.geometry("400x380")
+        manual_win.configure(bg="#111111")
+        manual_win.resizable(False, False)
+        
+        # 装备名称
+        ttk.Label(manual_win, text="装备名称：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=(10, 2), anchor=tk.W)
+        name_entry = tk.Entry(manual_win, bg="#1a1a2e", fg="#ffffff", insertbackground="white", 
+                             relief="flat", font=("Consolas", 10), bd=2, width=40)
+        name_entry.pack(padx=8, pady=2, fill=tk.X)
+        
+        # 装备类型
+        ttk.Label(manual_win, text="装备类型：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=4, anchor=tk.W)
+        type_var = tk.StringVar(value="武器")
+        type_box = ttk.Combobox(manual_win, textvariable=type_var,
+                                values=["武器", "护甲", "首饰", "武器-剑", "武器-斧", "武器-锤", "武器-匕首", "武器-法杖", "武器-弓"],
+                                state="readonly", width=38, font=("Consolas", 9))
+        type_box.pack(padx=8, pady=2, fill=tk.X)
+        
+        # 等级
+        ttk.Label(manual_win, text="等级：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=4, anchor=tk.W)
+        level_entry = tk.Entry(manual_win, bg="#1a1a2e", fg="#ffffff", insertbackground="white", 
+                               relief="flat", font=("Consolas", 10), bd=2, width=10)
+        level_entry.pack(padx=8, pady=2, anchor=tk.W)
+        
+        # 稀有度
+        ttk.Label(manual_win, text="稀有度：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=4, anchor=tk.W)
+        rarity_var = tk.StringVar(value="稀有")
+        rarity_box = ttk.Combobox(manual_win, textvariable=rarity_var,
+                                  values=["普通", "魔法", "稀有", "传奇"],
+                                  state="readonly", width=38, font=("Consolas", 9))
+        rarity_box.pack(padx=8, pady=2, fill=tk.X)
+        
+        # 前缀词缀
+        ttk.Label(manual_win, text="前缀词缀（每行一个）：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=4, anchor=tk.W)
+        prefix_text = scrolledtext.ScrolledText(manual_win, wrap=tk.WORD, bg="#1a1a2e", fg="#4ade80",
+                                                font=("Consolas", 9), height=4, width=40)
+        prefix_text.pack(padx=8, pady=2, fill=tk.X)
+        
+        # 后缀词缀
+        ttk.Label(manual_win, text="后缀词缀（每行一个）：", background="#111111", foreground="#aaaacc").pack(padx=8, pady=4, anchor=tk.W)
+        suffix_text = scrolledtext.ScrolledText(manual_win, wrap=tk.WORD, bg="#1a1a2e", fg="#60a5fa",
+                                                font=("Consolas", 9), height=4, width=40)
+        suffix_text.pack(padx=8, pady=2, fill=tk.X)
+        
+        # 确认按钮
+        def confirm_input():
+            equipment = {
+                "name": name_entry.get().strip(),
+                "type": type_var.get(),
+                "level": int(level_entry.get()) if level_entry.get().isdigit() else 0,
+                "rarity": rarity_var.get(),
+                "prefixes": [line.strip() for line in prefix_text.get("1.0", tk.END).split("\n") if line.strip()],
+                "suffixes": [line.strip() for line in suffix_text.get("1.0", tk.END).split("\n") if line.strip()]
+            }
+            
+            # 保存到装备库
+            try:
+                from memory.equipment_storage import EquipmentStorage
+                storage = EquipmentStorage()
+                equip_id = storage.save_equipment(equipment)
+                save_info = f"✅ 已保存到装备库 (ID: {equip_id})"
+            except Exception as e:
+                save_info = f"⚠️ 保存失败: {e}"
+            
+            # 在悬浮窗显示结果
+            result_lines = [
+                f"📷 装备名称: {equipment['name']}",
+                f"📦 装备类型: {equipment['type']}",
+                f"📊 等级: {equipment['level']}",
+                f"💎 稀有度: {equipment['rarity']}"
+            ]
+            if equipment['prefixes']:
+                result_lines.append(f"🔸 前缀: {', '.join(equipment['prefixes'])}")
+            if equipment['suffixes']:
+                result_lines.append(f"🔹 后缀: {', '.join(equipment['suffixes'])}")
+            
+            self._append_msg("手动输入", "\n".join(result_lines) + f"\n{save_info}", tag="system")
+            
+            # 如果查价器窗口已打开，自动填充数据
+            if hasattr(self, '_price_result') and self._price_result is not None:
+                if equipment['name']:
+                    self._price_entry.delete(0, tk.END)
+                    self._price_entry.insert(0, equipment['name'])
+                
+                all_affixes = equipment['prefixes'] + equipment['suffixes']
+                if all_affixes:
+                    self._affix_entry.delete(0, tk.END)
+                    self._affix_entry.insert(0, ', '.join(all_affixes))
+            
+            manual_win.destroy()
+        
+        ttk.Button(manual_win, text="确认输入", command=confirm_input, style="Send.TButton").pack(pady=10)
+        manual_win.focus_set()
     
     def _capture_and_recognize(self):
-        """截图识别装备信息"""
+        """截图识别装备信息（直接在悬浮窗显示结果）"""
         if not HAS_OCR:
             self._append_msg("系统", "❌ OCR 模块未加载，请安装：pip install pillow pytesseract", tag="error")
             return
         
-        # 检查查价器窗口是否已打开
-        if not hasattr(self, '_price_result') or self._price_result is None:
-            self._open_price_checker()
-            # 延迟一点让窗口创建完成
-            time.sleep(0.2)
-        
-        self._price_result.config(state=tk.NORMAL)
-        self._price_result.delete("1.0", tk.END)
-        self._price_result.insert(tk.END, "📷 请将鼠标移动到装备界面，3秒后自动截图...\n")
-        self._price_result.config(state=tk.DISABLED)
+        # 直接在悬浮窗消息区域显示提示
+        self._append_msg("系统", "📷 请将鼠标移动到装备界面，3秒后自动截图...", tag="system")
         
         threading.Thread(target=self._capture_thread, daemon=True).start()
     
@@ -527,32 +645,52 @@ class POE2FloatWindow:
             self.root.after(0, self._on_capture_done, f"❌ 识别失败：{e}", {})
     
     def _on_capture_done(self, text: str, equipment: Dict):
-        """处理截图识别结果"""
-        self._price_result.config(state=tk.NORMAL)
-        self._price_result.delete("1.0", tk.END)
-        
+        """处理截图识别结果（直接在悬浮窗显示）"""
         if "❌" in text:
-            self._price_result.insert(tk.END, text)
-        else:
-            # 保存装备数据到记忆库
-            try:
-                from memory.equipment_storage import EquipmentStorage
-                storage = EquipmentStorage()
-                equipment["ocr_text"] = text
-                equip_id = storage.save_equipment(equipment)
-                save_success = f"已保存到装备库 (ID: {equip_id})\n"
-            except Exception as e:
-                save_success = f"⚠️ 保存失败: {e}\n"
+            self._append_msg("系统", text, tag="error")
+            return
+        
+        # 保存装备数据到记忆库
+        try:
+            from memory.equipment_storage import EquipmentStorage
+            storage = EquipmentStorage()
+            equipment["ocr_text"] = text
+            equip_id = storage.save_equipment(equipment)
+            save_info = f"✅ 已保存到装备库 (ID: {equip_id})"
+        except Exception as e:
+            save_info = f"⚠️ 保存失败: {e}"
+        
+        # 在悬浮窗显示识别结果
+        result_lines = [
+            f"📷 装备名称: {equipment.get('name', '未识别')}",
+            f"📦 装备类型: {equipment.get('type', '未识别')}",
+            f"📊 等级: {equipment.get('level', 0)}",
+            f"💎 稀有度: {equipment.get('rarity', '未识别')}"
+        ]
+        
+        if equipment.get('prefixes'):
+            result_lines.append(f"🔸 前缀: {', '.join(equipment['prefixes'])}")
+        if equipment.get('suffixes'):
+            result_lines.append(f"🔹 后缀: {', '.join(equipment['suffixes'])}")
+        
+        self._append_msg("截图识别", "\n".join(result_lines) + f"\n{save_info}", tag="system")
+        
+        # 如果查价器窗口已打开，自动填充数据
+        if hasattr(self, '_price_result') and self._price_result is not None:
+            if equipment.get('name'):
+                self._price_entry.delete(0, tk.END)
+                self._price_entry.insert(0, equipment['name'])
             
-            self._price_result.insert(tk.END, "✅ 截图识别完成！\n")
-            self._price_result.insert(tk.END, save_success + "\n")
-            self._price_result.insert(tk.END, "=== 识别的原始文本 ===\n")
-            self._price_result.insert(tk.END, text + "\n\n")
-            self._price_result.insert(tk.END, "=== 解析结果 ===\n")
-            self._price_result.insert(tk.END, f"装备名称: {equipment.get('name', '未识别')}\n")
-            self._price_result.insert(tk.END, f"装备类型: {equipment.get('type', '未识别')}\n")
-            self._price_result.insert(tk.END, f"等级: {equipment.get('level', 0)}\n")
-            self._price_result.insert(tk.END, f"稀有度: {equipment.get('rarity', '未识别')}\n")
+            # 填充词缀到搜索框
+            all_affixes = []
+            if equipment.get('prefixes'):
+                all_affixes.extend(equipment['prefixes'])
+            if equipment.get('suffixes'):
+                all_affixes.extend(equipment['suffixes'])
+            
+            if all_affixes:
+                self._affix_entry.delete(0, tk.END)
+                self._affix_entry.insert(0, ', '.join(all_affixes))
             
             # 填充识别到的装备名称
             if equipment.get('name'):
@@ -569,25 +707,38 @@ class POE2FloatWindow:
         self._append_msg("系统", f"✅ 已切换至 {self._current_server} 服务器", tag="system")
     
     def _check_price(self):
-        """执行价格查询"""
+        """执行价格查询（仿照官方交易界面）"""
         item_name = self._price_entry.get().strip()
-        if not item_name:
-            return
         
-        # 获取勾选的词缀
+        # 获取搜索条件
+        item_type = self._item_type_var.get()
+        rarity = self._rarity_var.get()
+        min_lvl = self._min_lvl_entry.get().strip()
+        max_lvl = self._max_lvl_entry.get().strip()
+        affix_text = self._affix_entry.get().strip()
+        
+        # 解析词缀列表
         selected_affixes = []
-        for affix, var in self._affix_vars.items():
-            if var.get():
-                selected_affixes.append(affix)
-        
-        # 获取自定义词缀
-        custom_affixes = self._custom_affix_entry.get().strip()
-        if custom_affixes:
-            selected_affixes.extend([a.strip() for a in custom_affixes.split(",") if a.strip()])
+        if affix_text:
+            selected_affixes.extend([a.strip() for a in affix_text.split(",") if a.strip()])
         
         self._price_result.config(state=tk.NORMAL)
         self._price_result.delete("1.0", tk.END)
-        self._price_result.insert(tk.END, f"⏳ 正在查询 '{item_name}' 的价格...\n")
+        
+        # 构建搜索条件描述
+        search_desc = f"⏳ 正在查询"
+        if item_name:
+            search_desc += f" '{item_name}'"
+        if item_type != "全部":
+            search_desc += f" 类型:{item_type}"
+        if rarity != "全部":
+            search_desc += f" 稀有度:{rarity}"
+        if min_lvl or max_lvl:
+            search_desc += f" 等级:{min_lvl}-{max_lvl}"
+        if selected_affixes:
+            search_desc += f" 词缀:{','.join(selected_affixes)}"
+        
+        self._price_result.insert(tk.END, search_desc + "...\n")
         if selected_affixes:
             self._price_result.insert(tk.END, f"词缀筛选: {', '.join(selected_affixes)}\n")
         self._price_result.config(state=tk.DISABLED)
