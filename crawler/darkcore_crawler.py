@@ -1,5 +1,6 @@
 # crawler/darkcore_crawler.py — 3DM POE2 新闻/攻略爬虫（原暗黑核 d2core.com/poe2/ 已 404）
 
+from datetime import datetime
 from crawler._base import fetch_html, safe_text
 from utils.memory_manager import save_memory
 from config import CRAWLER_URLS
@@ -16,24 +17,37 @@ def crawl_darkcore() -> str:
     if not HAS_BS4:
         return "❌ 未安装 beautifulsoup4"
 
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     url  = CRAWLER_URLS["darkcore"]
     html = fetch_html(url)
     if html is None:
-        return "❌ 3DM POE2 页面请求失败"
+        # 请求失败时保存链接兜底
+        content = [
+            f"# 3DM POE2 攻略与资讯\n> 最后尝试：{now}\n",
+            "⚠️ 自动抓取失败，请手动打开以下链接查看：",
+            f"- 3DM POE2 主页：{url}",
+            "- POE2 忍者 BD 排行：https://poe.ninja/poe2/builds/",
+            "- POE2 编年史：https://poe2db.tw/us/",
+        ]
+        save_memory("meta", "darkcore_guides.md", "\n\n".join(content))
+        return "❌ 3DM POE2 页面请求失败，已保存参考链接"
 
     soup    = BeautifulSoup(html, "html.parser")
-    content = ["# 3DM POE2 攻略与资讯（自动同步）\n"]
+    content = [f"# 3DM POE2 攻略与资讯（自动同步）\n> 更新时间：{now}\n"]
 
-    # 提取新闻/文章列表：3DM 游戏页通常使用 .news-list、.article-list 等
+    # 尝试多种选择器提取文章列表
     articles = []
-    for sel in [".news-list li", ".artilelist li", ".newslist li",
-                "ul.list li", ".g-mn article", ".news_list li"]:
-        items = soup.select(sel)[:15]
+    selectors = [
+        ".news-list li a[href]", ".artilelist li a[href]",
+        ".newslist li a[href]", "ul.list li a[href]",
+        ".g-mn article a[href]", ".news_list li a[href]",
+        ".list-con a[href]", ".item a[href]",
+        "a[href*='pathofexile2']",
+    ]
+    for sel in selectors:
+        items = soup.select(sel)[:20]
         if items:
-            for item in items:
-                a_tag = item.select_one("a[href]")
-                if not a_tag:
-                    continue
+            for a_tag in items:
                 title = safe_text(a_tag).strip()
                 href  = a_tag.get("href", "")
                 if title and len(title) > 4:
@@ -42,13 +56,25 @@ def crawl_darkcore() -> str:
             if articles:
                 break
 
-    for title, link in articles[:15]:
-        content.append(f"## {title}\n链接：{link}")
-
-    if len(content) == 1:
-        # 备用：提取页面标题与前 3000 字文字
-        body = soup.get_text(separator="\n", strip=True)
-        content.append(body[:3000])
+    if articles:
+        for title, link in articles[:15]:
+            content.append(f"## {title}\n🔗 {link}")
+    else:
+        # 兜底：提取页面中所有带 POE / Path of Exile 的链接
+        all_links = soup.select("a[href]")
+        poe_links = []
+        for a in all_links:
+            txt = safe_text(a).strip()
+            href = a.get("href", "")
+            if txt and ("poe" in txt.lower() or "流放" in txt):
+                full_url = href if href.startswith("http") else f"https://www.3dmgame.com{href}"
+                poe_links.append((txt, full_url))
+        if poe_links:
+            for title, link in poe_links[:15]:
+                content.append(f"## {title}\n🔗 {link}")
+        else:
+            content.append("\n⚠️ 未能解析到 POE2 相关文章。")
+            content.append(f"请手动访问：{url}")
 
     save_memory("meta", "darkcore_guides.md", "\n\n".join(content))
     return f"✅ 3DM POE2 已更新：{len(articles)} 条资讯"

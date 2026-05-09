@@ -11,22 +11,23 @@ from config import LLM_PROVIDER, LLM_CONFIG
 # LLM 调用（兼容 OpenAI 接口格式）
 # ──────────────────────────────────────────────
 
+def _has_valid_api_key() -> bool:
+    """检查是否已配置有效的 API Key。"""
+    cfg = LLM_CONFIG.get(LLM_PROVIDER, {})
+    api_key = cfg.get("api_key", "")
+    return bool(api_key) and not api_key.startswith("YOUR_")
+
+
 def _llm_call(prompt: str) -> str:
     """
     调用 LLM 接口。支持 DeepSeek / 通义千问 / OpenAI（均兼容 OpenAI 格式）。
-    若无 API Key，返回占位提示，方便未配置时仍能测试悬浮窗。
+    注意：调用方应先通过 _has_valid_api_key() 判断再调用。
     """
     cfg = LLM_CONFIG.get(LLM_PROVIDER, {})
     api_key  = cfg.get("api_key", "")
     base_url = cfg.get("base_url", "")
     model    = cfg.get("model", "")
     max_tok  = cfg.get("max_tokens", 1500)
-
-    if not api_key or api_key.startswith("YOUR_"):
-        return (
-            "⚠️ 尚未配置 LLM API Key，请打开 config.py 填写对应 Key。\n"
-            f"当前问题已记录，待配置完成后可重新提问：{prompt[-80:]}"
-        )
 
     url = f"{base_url.rstrip('/')}/chat/completions"
     payload = json.dumps({
@@ -51,9 +52,9 @@ def _llm_call(prompt: str) -> str:
             return data["choices"][0]["message"]["content"].strip()
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
-        return f"❌ LLM 请求失败（HTTP {e.code}）：{body[:200]}"
+        raise RuntimeError(f"LLM HTTP {e.code}：{body[:200]}")
     except Exception as e:
-        return f"❌ LLM 调用异常：{e}"
+        raise RuntimeError(f"LLM 调用异常：{e}")
 
 
 # ──────────────────────────────────────────────
@@ -116,14 +117,38 @@ def _build_prompt(question: str, ctx: dict) -> str:
 
 def ask_ai(question: str) -> str:
     """
-    核心对话函数：检索记忆 → 构建 Prompt → 调用 LLM → 保存历史。
+    核心对话函数：
+    - 有 LLM → 检索记忆 → 构建 Prompt → 调用 LLM
+    - 无 LLM → 直接从本地记忆库搜索相关内容回答
     """
     from ai.memory_retriever import retrieve_context
     from utils.memory_manager import save_chat_history
 
-    ctx      = retrieve_context(question)
-    prompt   = _build_prompt(question, ctx)
-    response = _llm_call(prompt)
+    # ── 离线模式：用本地搜索引擎直接回答 ──
+    if not _has_valid_api_key():
+        try:
+            from ai.local_search import quick_answer
+            response = quick_answer(question)
+        except Exception as e:
+            response = f"❌ 本地搜索失败：{e}"
+        save_chat_history(question, response)
+        return response
+
+    # ── 在线模式：走 LLM ──
+    ctx = retrieve_context(question)
+    prompt = _build_prompt(question, ctx)
+    try:
+        response = _llm_call(prompt)
+    except Exception as e:
+        # LLM 调用失败时也降级到本地搜索
+        try:
+            from ai.local_search import quick_answer
+            response = (
+                f"⚠️ LLM 调用失败（{e}），已自动切换为本地记忆库搜索：\n\n"
+                f"{quick_answer(question)}"
+            )
+        except Exception:
+            response = f"❌ LLM 调用失败且本地搜索不可用：{e}"
 
     save_chat_history(question, response)
     return response
