@@ -10,28 +10,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def _init_memories():
-    """首次运行初始化：生成 MD 模板 + 检查 0.5 赛季个人总结。"""
+    """首次运行初始化：生成 MD 模板。"""
     print("📂 初始化记忆库模板…")
     from md_manager.md_generator import init_all_templates
     result = init_all_templates()
     print(result)
-
-    from utils.memory_manager import load_memory, init_user_version_memory
-    user_05 = load_memory("core", "user_version_0.5.md", version="0.5")
-    if not user_05:
-        print("\n" + "=" * 60)
-        print("💡 未检测到你个人总结的 0.5 赛季细节。")
-        print("   请将你整理好的总结内容粘贴到下方，按回车确认：")
-        print("   （也可直接回车跳过，后续在悬浮窗用指令补充）")
-        print("=" * 60)
-        try:
-            content = input("粘贴总结（回车跳过）：").strip()
-            if content:
-                init_user_version_memory(version="0.5", content=content)
-            else:
-                print("⏭️  已跳过，稍后可在悬浮窗输入：初始化0.5赛季总结：<内容>")
-        except EOFError:
-            pass
 
 
 def _start_crawlers():

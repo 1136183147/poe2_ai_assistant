@@ -5,8 +5,17 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 schedule>=1.2.1
 
+# 截图识别（查价器使用）
+pillow>=10.0.0
+pytesseract>=0.3.10
+
 # 可选：若需要爬取抖音等 JS 渲染页面
 # selenium>=4.18.0
 
 # 可选：使用 OpenAI SDK（也可用内置 urllib，无需安装）
 # openai>=1.12.0
+
+# 注意：pytesseract 需要安装 Tesseract OCR 引擎
+# Windows: https://github.com/UB-Mannheim/tesseract/wiki
+# macOS: brew install tesseract
+# Linux: sudo apt-get install tesseract-ocr

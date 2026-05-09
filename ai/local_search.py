@@ -7,6 +7,190 @@ from config import MEMORY_ROOT
 
 
 # ──────────────────────────────────────────────
+# 智能整合：识别表格和关键信息
+# ──────────────────────────────────────────────
+
+def _extract_tables(text: str) -> list[dict]:
+    """从文本中提取 Markdown 表格"""
+    tables = []
+    
+    # 匹配表格块
+    table_pattern = r'(\|.*\|\n)+'
+    matches = re.finditer(table_pattern, text)
+    
+    for match in matches:
+        table_text = match.group()
+        lines = [line.strip() for line in table_text.split('\n') if line.strip()]
+        
+        if len(lines) < 2:
+            continue
+        
+        # 解析表头
+        header_line = lines[0]
+        headers = [cell.strip() for cell in header_line.split('|')[1:-1]]
+        
+        # 解析数据行（跳过分隔行）
+        data_rows = []
+        for line in lines[1:]:
+            if re.match(r'^\|[-\s:|]+\|$', line):  # 分隔行
+                continue
+            cells = [cell.strip() for cell in line.split('|')[1:-1]]
+            if len(cells) == len(headers):
+                data_rows.append(cells)
+        
+        if data_rows:
+            tables.append({
+                'headers': headers,
+                'rows': data_rows,
+                'raw': table_text
+            })
+    
+    return tables
+
+
+def _format_table_summary(table: dict, keywords: list[str]) -> str:
+    """格式化表格摘要，优先显示匹配关键词的行"""
+    headers = table['headers']
+    rows = table['rows']
+    
+    # 优先查找精确匹配的行（包含完整关键词）
+    matched_rows = []
+    for row in rows:
+        row_text = ' '.join(row).lower()
+        # 检查是否包含任何完整关键词
+        if any(kw.lower() in row_text for kw in keywords):
+            matched_rows.append(row)
+    
+    # 如果找到匹配的行，只显示这些行（最多5行）
+    if matched_rows:
+        # 构建表格
+        lines = []
+        lines.append('| ' + ' | '.join(headers) + ' |')
+        lines.append('|' + '|'.join(['---'] * len(headers)) + '|')
+        
+        for row in matched_rows[:5]:
+            lines.append('| ' + ' | '.join(row) + ' |')
+        
+        return '\n'.join(lines)
+    
+    # 如果没有匹配的行，返回空字符串（让其他逻辑处理）
+    return ""
+
+
+def _extract_key_info(text: str, keywords: list[str]) -> list[str]:
+    """提取文本中的关键信息片段"""
+    key_infos = []
+    
+    # 按段落分割
+    paragraphs = _split_paragraphs(text)
+    
+    for para in paragraphs:
+        # 检查是否包含关键词
+        para_lower = para.lower()
+        if any(kw.lower() in para_lower for kw in keywords):
+            # 提取关键句（包含关键词的句子）
+            sentences = re.split(r'[。！？\n]', para)
+            for sent in sentences:
+                sent = sent.strip()
+                if sent and any(kw.lower() in sent.lower() for kw in keywords):
+                    # 限制长度
+                    if len(sent) <= 100:
+                        key_infos.append(sent)
+                    else:
+                        key_infos.append(sent[:100] + '...')
+                    if len(key_infos) >= 5:
+                        break
+        
+        if len(key_infos) >= 5:
+            break
+    
+    return key_infos
+
+
+def _integrate_results(hits: list[tuple], keywords: list[str]) -> str:
+    """整合搜索结果，提供简洁的总结"""
+    lines = []
+    
+    # 1. 首先尝试提取表格（只显示有匹配的表格）
+    table_summaries = []
+    for score, para, fname, cat, urls in hits:
+        tables = _extract_tables(para)
+        for table in tables:
+            summary = _format_table_summary(table, keywords)
+            if summary.strip():  # 只添加有内容的表格
+                source = f"{cat}/{fname}" if cat != "." else fname
+                table_summaries.append((source, summary))
+    
+    if table_summaries:
+        lines.append("📊 找到相关表格数据：\n")
+        for source, summary in table_summaries[:2]:  # 最多显示2个表格
+            lines.append(f"【{source}】")
+            lines.append(summary)
+            lines.append("")
+    
+    # 2. 提取关键信息（过滤时间戳和表格行）
+    key_infos = []
+    seen = set()
+    for score, para, fname, cat, urls in hits:
+        # 跳过 chat_history.json 的内容（避免重复显示搜索历史）
+        if fname == "chat_history.json":
+            continue
+        
+        infos = _extract_key_info(para, keywords)
+        for info in infos:
+            # 过滤时间戳格式的内容
+            if info.startswith("time="):
+                continue
+            # 过滤表格行格式的内容（已在表格中显示）
+            if info.startswith("|") and info.endswith("|"):
+                continue
+            # 去重
+            info_key = info[:50]
+            if info_key not in seen:
+                key_infos.append(info)
+                seen.add(info_key)
+        
+        if len(key_infos) >= 5:
+            break
+    
+    if key_infos:
+        lines.append("📌 关键信息：\n")
+        for i, info in enumerate(key_infos, 1):
+            lines.append(f"{i}. {info}")
+        lines.append("")
+    
+    # 3. 如果表格和关键信息都很少，显示原始检索结果
+    if not table_summaries and len(key_infos) < 3:
+        lines.append("📋 详细检索结果：\n")
+        lines.append("=" * 50)
+        
+        shown_paras = set()
+        count = 0
+        for score, para, fname, cat, urls in hits:
+            # 跳过 chat_history.json
+            if fname == "chat_history.json":
+                continue
+                
+            para_key = para[:80]
+            if para_key in shown_paras:
+                continue
+            shown_paras.add(para_key)
+            
+            count += 1
+            source = f"{cat}/{fname}" if cat != "." else fname
+            lines.append(f"\n▎来源：【{source}】（匹配度 ★{'★' * min(score // 3, 3)}）")
+            display = para if len(para) <= 400 else para[:400] + "…"
+            lines.append(f"{display}")
+            
+            if count >= 5:
+                break
+        
+        lines.append(f"\n{'=' * 50}")
+    
+    return '\n'.join(lines)
+
+
+# ──────────────────────────────────────────────
 # 关键词提取（中英文混合，无外部依赖）
 # ──────────────────────────────────────────────
 
@@ -171,6 +355,91 @@ def _find_urls(text: str) -> list[str]:
 # 主搜索函数
 # ──────────────────────────────────────────────
 
+def _search_equipment(keywords: list[str]) -> list[dict]:
+    """搜索装备库中的装备数据"""
+    try:
+        from memory.equipment_storage import EquipmentStorage
+        storage = EquipmentStorage()
+        results = []
+        
+        # 对每个关键词进行搜索
+        for kw in keywords:
+            equip_list = storage.search_equipment(kw)
+            for equip in equip_list:
+                if equip not in results:
+                    results.append(equip)
+        
+        return results
+    except Exception:
+        return []
+
+
+def _get_price_info(item_name: str, affixes: list = None) -> str:
+    """获取装备价格信息"""
+    try:
+        from price_checker.trade_api import PriceChecker
+        
+        checker = PriceChecker()
+        message, prices = checker.check_price(item_name, affixes=affixes)
+        
+        if prices and len(prices) > 0:
+            # 按价格从低到高排序
+            sorted_prices = sorted(prices, key=lambda x: float(x.get('price', float('inf'))))
+            
+            lines = []
+            lines.append("     📊 当前市场价格（从低到高）：")
+            
+            # 显示前5个最低价格
+            for i, price in enumerate(sorted_prices[:5], 1):
+                p = price.get('price', 'N/A')
+                c = price.get('currency', 'Chaos')
+                l = price.get('listing', '')
+                lines.append(f"       {i}. {p} {c} - {l}")
+            
+            return '\n'.join(lines)
+        else:
+            return f"     ⚠️ 未找到价格数据 - {message}"
+    except Exception as e:
+        return f"     ⚠️ 价格查询失败: {str(e)[:50]}"
+
+
+def _format_equipment_results(equipment_list: list[dict]) -> str:
+    """格式化装备搜索结果"""
+    if not equipment_list:
+        return ""
+    
+    lines = []
+    lines.append("🔧 装备库检索结果：\n")
+    
+    for equip in equipment_list[:3]:  # 最多显示3个
+        lines.append(f"【ID: {equip['id']}】{equip['name']}")
+        lines.append(f"  ├─ 类型: {equip['type']}")
+        lines.append(f"  ├─ 等级: {equip['level']}")
+        lines.append(f"  ├─ 稀有度: {equip['rarity']}")
+        
+        all_affixes = []
+        if equip['prefixes']:
+            all_affixes.extend(equip['prefixes'])
+            lines.append(f"  ├─ 前缀词缀: {', '.join(equip['prefixes'])}")
+        if equip['suffixes']:
+            all_affixes.extend(equip['suffixes'])
+            lines.append(f"  ├─ 后缀词缀: {', '.join(equip['suffixes'])}")
+        if equip['properties']:
+            props = ', '.join([f"{k}: {v}" for k, v in equip['properties'].items()])
+            lines.append(f"  ├─ 属性: {props}")
+        
+        lines.append(f"  └─ 保存时间: {equip['created_at'][:19]}")
+        
+        # 添加价格查询结果
+        if equip['name']:
+            price_info = _get_price_info(equip['name'], all_affixes)
+            lines.append(price_info)
+        
+        lines.append("")
+    
+    return '\n'.join(lines)
+
+
 def search(question: str, top_k: int = 8) -> str:
     """在本地记忆库中搜索与问题最相关的内容。"""
     keywords = _extract_keywords(question)
@@ -184,8 +453,9 @@ def search(question: str, top_k: int = 8) -> str:
         )
 
     files = _scan_memory_files()
-    if not files:
-        return "📭 记忆库为空，请先运行爬虫同步资讯，或在悬浮窗中手动喂养内容。"
+    
+    # 搜索装备库
+    equip_results = _search_equipment(keywords)
 
     # 对每个文件的每个段落打分
     all_hits = []
@@ -202,30 +472,33 @@ def search(question: str, top_k: int = 8) -> str:
 
     all_hits.sort(reverse=True, key=lambda x: x[0])
 
-    # 构建回答
+    # 使用智能整合功能
+    integrated = _integrate_results(all_hits, keywords)
+    
+    # 格式化装备库结果
+    equip_result_text = _format_equipment_results(equip_results)
+    
+    # 添加标题和提示
     lines = [f'🔍 本地记忆库检索结果 — 关键词：{" ".join(keywords[:8])}\n']
     lines.append("=" * 50)
-
-    shown_paras = set()
-    count = 0
-    for score, para, fname, cat, urls in all_hits:
-        para_key = para[:80]
-        if para_key in shown_paras:
-            continue
-        shown_paras.add(para_key)
-
-        count += 1
-        source = f"{cat}/{fname}" if cat != "." else fname
-        lines.append(f"\n▎来源：【{source}】（匹配度 ★{'★' * min(score // 3, 3)}）")
-        display = para if len(para) <= 450 else para[:450] + "…"
-        lines.append(f"{display}")
-        if urls:
-            lines.append(f"🔗 相关链接：{' | '.join(urls[:3])}")
-
-        if count >= top_k:
-            break
-
-    lines.append(f"\n{'=' * 50}")
+    lines.append("")
+    
+    # 先显示装备库结果
+    if equip_result_text:
+        lines.append(equip_result_text)
+        lines.append("")
+    
+    # 再显示普通记忆库结果
+    if integrated.strip():
+        lines.append(integrated)
+        lines.append("")
+    
+    # 如果没有任何结果
+    if not equip_result_text and not integrated.strip():
+        lines.append(_no_match_response(question, keywords))
+        lines.append("")
+    
+    lines.append("=" * 50)
     lines.append(
         "💡 以上内容来自本地记忆库搜索。\n"
         "   配置 LLM API Key（config.py）后可获得更智能的整合回答。\n"

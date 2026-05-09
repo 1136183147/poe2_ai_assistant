@@ -1,5 +1,5 @@
 # 踩蘑菇社区讨论（自动同步）
-> 更新时间：2026-05-09 14:44
+> 更新时间：2026-05-09 17:04
 
 
 ### 没人装机 主板市场已经遭殃
@@ -14,8 +14,8 @@
 ### 腾讯国服《流放之路2》预告公开
 🔗 https://www.caimogu.cc/topic/detail.html?kw=%E8%85%BE%E8%AE%AF%E5%9B%BD%E6%9C%8D%E3%80%8A%E6%B5%81%E6%94%BE%E4%B9%8B%E8%B7%AF2%E3%80%8B%E9%A2%84%E5%91%8A%E5%85%AC%E5%BC%80
 
+### 黑客入侵玩家账户、窃取贵重物品
+🔗 https://www.caimogu.cc/topic/detail.html?kw=%E9%BB%91%E5%AE%A2%E5%85%A5%E4%BE%B5%E7%8E%A9%E5%AE%B6%E8%B4%A6%E6%88%B7%E3%80%81%E7%AA%83%E5%8F%96%E8%B4%B5%E9%87%8D%E7%89%A9%E5%93%81
+
 ### 《流放之路2》国服答疑
 🔗 https://www.caimogu.cc/topic/detail.html?kw=%E3%80%8A%E6%B5%81%E6%94%BE%E4%B9%8B%E8%B7%AF2%E3%80%8B%E5%9B%BD%E6%9C%8D%E7%AD%94%E7%96%91
-
-### 流放之路2国服版号过审！
-🔗 https://www.caimogu.cc/topic/detail.html?kw=%E6%B5%81%E6%94%BE%E4%B9%8B%E8%B7%AF2%E5%9B%BD%E6%9C%8D%E7%89%88%E5%8F%B7%E8%BF%87%E5%AE%A1%EF%BC%81
