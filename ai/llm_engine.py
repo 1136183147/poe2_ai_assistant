@@ -160,6 +160,7 @@ def handle_special_command(text: str) -> str | None:
       - "初始化[版本号]赛季总结：内容"
       - "收藏BD：内容"
       - "做装心得：内容"
+      - "查价 <装备名称>"
     返回处理结果字符串，若非指令则返回 None。
     """
     from utils.memory_manager import (
@@ -189,5 +190,19 @@ def handle_special_command(text: str) -> str | None:
         note = text.split("：", 1)[1].strip()
         add_user_note(note, version=get_current_version())
         return "✅ 已将你的新发现存入个人记忆"
+
+    # 查价指令
+    if text.startswith("查价 ") or text.startswith("价格 ") or text.startswith("price "):
+        item_name = text.split(" ", 1)[1].strip()
+        if not item_name:
+            return "❌ 请输入装备名称，例如：查价 Exalted Orb"
+        
+        try:
+            from price_checker.trade_api import quick_check
+            return quick_check(item_name)
+        except ImportError:
+            return "❌ 查价器模块未加载"
+        except Exception as e:
+            return f"❌ 查价失败：{e}"
 
     return None

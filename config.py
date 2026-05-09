@@ -84,3 +84,39 @@ REQUEST_HEADERS = {
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/124.0.0.0 Safari/537.36"
 }
+
+# ==================== 交易API配置（查价器使用）====================
+# 三个服务器的交易接口
+TRADE_API = {
+    "international": {
+        "name": "国际服",
+        "base_url": "https://www.pathofexile.com/api/trade2",
+        "search_url": "https://www.pathofexile.com/api/trade2/search/poe2/{league}",
+        "fetch_url": "https://www.pathofexile.com/api/trade2/fetch/{ids}",
+        "exchange_url": "https://www.pathofexile.com/api/trade2/exchange/poe2/{league}",
+    },
+    "china": {
+        "name": "国服（腾讯）",
+        "base_url": "https://poe.game.qq.com/api/trade2",
+        "search_url": "https://poe.game.qq.com/api/trade2/search/poe2/{league}",
+        "fetch_url": "https://poe.game.qq.com/api/trade2/fetch/{ids}",
+        "exchange_url": "https://poe.game.qq.com/api/trade2/exchange/poe2/{league}",
+    },
+    "tw": {
+        "name": "台服/港澳",
+        "base_url": "https://pathofexile.tw/api/trade2",
+        "search_url": "https://pathofexile.tw/api/trade2/search/poe2/{league}",
+        "fetch_url": "https://pathofexile.tw/api/trade2/fetch/{ids}",
+        "exchange_url": "https://pathofexile.tw/api/trade2/exchange/poe2/{league}",
+    },
+}
+
+# POESESSID（登录Cookie，必须配置才能调用交易API）
+# 获取方式：登录游戏官网，在浏览器开发者工具中找到 POESESSID Cookie
+POESESSID = "YOUR_POESESSID"
+
+# 默认服务器（international / china / tw）
+DEFAULT_SERVER = "international"
+
+# 默认赛季（需要根据当前版本动态更新）
+DEFAULT_LEAGUE = "Affliction"

@@ -29,7 +29,17 @@ LLM_CONFIG = {
 > **推荐使用 DeepSeek**（价格低、速度快、支持中文）  
 > 申请地址：https://platform.deepseek.com/
 
-### 3. 启动
+### 3. 配置 POESESSID（查价器使用）
+如需使用装备查价功能，需配置 POESESSID：
+1. 登录游戏官网（国际服/国服/台服）
+2. 在浏览器开发者工具中找到 POESESSID Cookie
+3. 将其填入 `config.py`：
+```python
+POESESSID = "your_poessid_here"   # ← 替换这里
+DEFAULT_SERVER = "international"   # international / china / tw
+```
+
+### 4. 启动
 ```bash
 python main.py
 ```
@@ -46,11 +56,21 @@ python main.py
 | 记录新发现 | `记录：<你的发现>` |
 | 做装心得 | `做装心得：<心得内容>` |
 | 收藏BD | `收藏BD：<BD描述>` |
+| 查价 | `查价 <装备名称>` 或点击「查价器」按钮 |
+| 配置 | 点击「配置」按钮，设置 POESESSID 和服务器 |
 | 切换版本 | 下拉框选择版本，点击「切换版本」|
 | 导出记忆 | 点击「导出记忆」，生成 ZIP 包 |
 | 导入记忆 | 点击「导入记忆」，选择 ZIP 包 |
 | 立即爬取 | 点击「立即爬取」，手动触发所有爬虫 |
 | 隐藏窗口 | 按 ESC 键 |
+
+### 查价器功能
+- 支持三个服务器：国际服、国服（腾讯）、台服/港澳
+- 两种使用方式：
+  1. 在聊天框输入：`查价 Exalted Orb`
+  2. 点击「查价器」按钮，打开查价窗口
+- 显示结果包含：装备名称、等级、稀有度、价格、卖家、在线状态、关键属性
+- 自动计算价格统计（最低/最高/平均）
 
 ---
 
@@ -59,7 +79,7 @@ python main.py
 ```
 poe2_ai_assistant/
 ├── main.py                  # 入口，一键启动
-├── config.py                # 全局配置（LLM Key、爬虫频率、悬浮窗参数）
+├── config.py                # 全局配置（LLM Key、爬虫频率、悬浮窗参数、交易API）
 ├── requirements.txt         # 依赖列表
 ├── memory/                  # 记忆库（自动生成）
 │   ├── core/                # 版本机制 + 职业信息
@@ -81,8 +101,11 @@ poe2_ai_assistant/
 │   ├── poe2_official_crawler.py    # POE2 官网
 │   ├── poe2_chronicles_crawler.py  # POE2 编年史
 │   └── version_crawler.py   # 版本补丁说明
+├── price_checker/
+│   ├── __init__.py          # 查价器模块入口
+│   └── trade_api.py         # 交易API封装（支持国际服/国服/台服）
 ├── gui/
-│   └── float_window.py      # 悬浮窗界面
+│   └── float_window.py      # 悬浮窗界面（含查价器弹窗）
 ├── md_manager/
 │   └── md_generator.py      # MD 模板生成器
 └── utils/
@@ -110,3 +133,12 @@ A：无需改动代码。新版本上线后：
 1. 爬虫自动同步资讯
 2. 在悬浮窗输入 `初始化1.0赛季总结：<内容>` 补充个人总结
 3. 下拉框切换至对应版本即可
+
+**Q：查价失败/403错误？**  
+A：请检查 `config.py` 中的 POESESSID 是否正确且未过期。POESESSID 是登录游戏官网后的 Cookie，需要重新登录获取。
+
+**Q：查价器支持哪些服务器？**  
+A：支持三个服务器：国际服、国服（腾讯）、台服/港澳。在查价器窗口中可切换服务器。
+
+**Q：如何获取 POESESSID？**  
+A：登录游戏官网 → 打开浏览器开发者工具（F12）→ 切换到 Application/Storage → 找到 Cookies → 复制 POESESSID 的值。
