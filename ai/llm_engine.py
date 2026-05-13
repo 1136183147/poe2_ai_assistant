@@ -115,14 +115,47 @@ def _build_prompt(question: str, ctx: dict) -> str:
 # 对外接口
 # ──────────────────────────────────────────────
 
-def ask_ai(question: str) -> str:
+def _fetch_from_web(question: str) -> str | None:
+    """
+    优先从网上获取最新信息
+    返回：获取到的信息（字符串），如果获取失败或无相关信息则返回 None
+    """
+    try:
+        # 尝试从 POE2 编年史获取装备/技能信息
+        from crawler.poe2_chronicles_crawler import search_equipment, search_skill
+        
+        # 判断问题类型
+        if "底材" in question or "装备" in question or "基底" in question:
+            result = search_equipment(question)
+            if result and "未找到" not in result:
+                return f"🌐 从 POE2 编年史获取：\n\n{result}"
+        
+        if "技能" in question or "天赋" in question:
+            result = search_skill(question)
+            if result and "未找到" not in result:
+                return f"🌐 从 POE2 编年史获取：\n\n{result}"
+        
+    except Exception as e:
+        print(f"⚠️ 网络搜索失败：{e}")
+    
+    return None
+
+
+def answer_question(question: str) -> str:
     """
     核心对话函数：
+    - 优先从网上获取最新信息
     - 有 LLM → 检索记忆 → 构建 Prompt → 调用 LLM
     - 无 LLM → 直接从本地记忆库搜索相关内容回答
     """
     from ai.memory_retriever import retrieve_context
     from utils.memory_manager import save_chat_history
+
+    # ── 优先：从网上获取最新信息 ──
+    web_result = _fetch_from_web(question)
+    if web_result:
+        save_chat_history(question, web_result)
+        return web_result
 
     # ── 离线模式：用本地搜索引擎直接回答 ──
     if not _has_valid_api_key():

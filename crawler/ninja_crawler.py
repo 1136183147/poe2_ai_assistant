@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from crawler._base import fetch_html, safe_text
+from crawler._base import fetch_html, safe_text, validate_data, extract_text_with_fallback
 from utils.memory_manager import save_memory
 from config import CRAWLER_URLS
 
@@ -20,14 +20,15 @@ def crawl_poe2_ninja() -> str:
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     url  = CRAWLER_URLS["ninja"]
-    html = fetch_html(url)
+    html, status = fetch_html(url)
+    
     if html is None:
         # 请求失败时保存链接兜底
         content = {
             "_meta": {
                 "last_attempt": now,
                 "source_url": url,
-                "note": "自动抓取失败，请手动访问网站查看",
+                "note": f"自动抓取失败（{status}），请手动访问网站查看",
             },
             "reference_links": [
                 {"name": "POE2 Ninja Builds", "url": url},
@@ -35,52 +36,98 @@ def crawl_poe2_ninja() -> str:
             ],
         }
         save_memory("meta", "top_builds.json", content)
-        save_memory("meta", "price_trend.json", {"_meta": {"last_attempt": now, "note": "抓取失败"}})
-        return "❌ POE2 Ninja 请求失败，已保存参考链接"
+        save_memory("meta", "price_trend.json", {"_meta": {"last_attempt": now, "note": status}})
+        return f"❌ POE2 Ninja {status}，已保存参考链接"
 
     soup = BeautifulSoup(html, "html.parser")
 
     # ── 热门 BD ──
     builds = []
-    # 尝试多种表格选择器
-    for table_sel in ["table tbody tr", ".build-table tr", "[class*='build'] tr", ".table tr"]:
+    
+    # 尝试多种表格选择器（按优先级）
+    table_selectors = [
+        "table.builds-table tbody tr",
+        "table.table tbody tr",
+        ".build-table tr",
+        "[class*='build'] tr",
+        ".table tr",
+    ]
+    
+    for table_sel in table_selectors:
         rows = soup.select(table_sel)
-        if rows:
+        if rows and len(rows) > 2:
             for row in rows[:25]:
                 cols = row.select("td, th")
                 if len(cols) >= 2:
-                    rank  = safe_text(cols[0]) or "-"
-                    name  = safe_text(cols[1]) or "未知BD"
-                    usage = safe_text(cols[2]) if len(cols) > 2 else "-"
-                    builds.append({"rank": rank, "name": name, "usage": usage})
+                    rank  = extract_text_with_fallback(cols[0], ["span", "div", "a"], "-")
+                    name  = extract_text_with_fallback(cols[1], ["a", "span", "div"], "未知BD")
+                    usage = extract_text_with_fallback(cols[2], ["span", "div"], "-") if len(cols) > 2 else "-"
+                    
+                    # 验证数据有效性
+                    if name and len(name) > 3 and name not in ["Rank", "Name", "Usage", "排名", "名称"]:
+                        builds.append({"rank": rank, "name": name.strip(), "usage": usage})
             if builds:
                 break
 
     # 备用：从页面找所有含 build 的文本块
     if not builds:
-        for item in soup.select(".build-row, .league-build, [class*='build']")[:20]:
+        build_elements = soup.select(".build-row, .league-build, [class*='build'], .build-item")[:20]
+        for item in build_elements:
             text = safe_text(item)[:80]
-            if text and len(text) > 5:
-                builds.append({"rank": "-", "name": text, "usage": "-"})
+            if text and len(text) > 5 and not text.isdigit():
+                builds.append({"rank": "-", "name": text.strip(), "usage": "-"})
 
     # ── 通货价格 ──
     prices = {}
-    for item in soup.select(".currency-item, [class*='currency'], .price-row")[:20]:
-        name_el  = item.select_one(".currency-name, [class*='name'], td:first-child")
-        price_el = item.select_one(".currency-value, [class*='value'], [class*='price'], td:last-child")
-        if name_el and price_el:
-            prices[safe_text(name_el)] = safe_text(price_el)
+    currency_selectors = [
+        ".currency-item", 
+        "[class*='currency']", 
+        ".price-row",
+        ".item-row",
+    ]
+    
+    for selector in currency_selectors:
+        items = soup.select(selector)[:30]
+        if items:
+            for item in items:
+                name_selectors = [".currency-name", "[class*='name']", "td:first-child", ".item-name"]
+                price_selectors = [".currency-value", "[class*='value']", "[class*='price']", "td:last-child", ".item-price"]
+                
+                name = extract_text_with_fallback(item, name_selectors)
+                price = extract_text_with_fallback(item, price_selectors)
+                
+                if name and price and len(name) > 2 and len(price) > 0:
+                    # 过滤无效数据
+                    if name not in ["Name", "Currency", "通货", "名称"]:
+                        prices[name.strip()] = price.strip()
+            if prices:
+                break
+
+    # 数据验证
+    builds_valid, builds_msg = validate_data(builds, min_items=3)
+    prices_valid, prices_msg = validate_data(prices, min_items=5)
 
     # 兜底：存入源链接
-    if not builds:
-        builds = [{"rank": "⚠️", "name": "未能解析 BD 数据", "usage": f"请手动访问：{url}"}]
-    if not prices:
-        prices = {"⚠️": f"未能解析价格数据，请访问 {url}"}
+    if not builds_valid:
+        print(f"⚠️ BD 数据验证失败：{builds_msg}")
+        builds = [{"rank": "⚠️", "name": f"未能解析 BD 数据（{builds_msg}）", "usage": f"请手动访问：{url}"}]
+    
+    if not prices_valid:
+        print(f"⚠️ 价格数据验证失败：{prices_msg}")
+        prices = {"⚠️": f"未能解析价格数据（{prices_msg}），请访问 {url}"}
 
-    save_memory("meta", "top_builds.json", builds)
+    save_memory("meta", "top_builds.json", {
+        "_last_update": now,
+        "_source": url,
+        "_status": "valid" if builds_valid else "invalid",
+        "builds": builds,
+    })
+    
     save_memory("meta", "price_trend.json", {
         "_last_update": now,
         "_source": url,
+        "_status": "valid" if prices_valid else "invalid",
         "prices": prices,
     })
-    return f"✅ POE2 Ninja 已更新：{len(builds)} 条 BD，{len(prices)} 条价格"
+    
+    return f"✅ POE2 Ninja 已更新：{len(builds)} 条 BD（{builds_msg}），{len(prices)} 条价格（{prices_msg}）"

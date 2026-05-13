@@ -1,6 +1,7 @@
 # crawler/poe2_chronicles_crawler.py — POE2 编年史做装数据爬虫
 
 from datetime import datetime
+from urllib.parse import quote
 from crawler._base import fetch_html
 from utils.memory_manager import save_memory
 from config import CRAWLER_URLS
@@ -10,6 +11,113 @@ try:
     HAS_BS4 = True
 except ImportError:
     HAS_BS4 = False
+
+
+# 实时搜索接口
+def search_equipment(keyword: str) -> str:
+    """
+    实时从 POE2 编年史搜索装备/底材信息
+    :param keyword: 搜索关键词（如：剑、法杖、底材等）
+    :return: 搜索结果文本
+    """
+    if not HAS_BS4:
+        return "❌ 需要安装 beautifulsoup4"
+    
+    try:
+        # 构建搜索 URL
+        encoded_keyword = quote(keyword)
+        search_url = f"https://poe2db.tw/us/search?q={encoded_keyword}"
+        
+        html = fetch_html(search_url)
+        if html is None:
+            return "❌ 网络请求失败"
+        
+        soup = BeautifulSoup(html, "html.parser")
+        
+        # 查找搜索结果列表
+        results = []
+        
+        # 尝试多种可能的结果容器
+        result_containers = soup.select(".search-results, .results, table.items, .item-list, #search-results")
+        
+        if result_containers:
+            for container in result_containers:
+                items = container.find_all(["a", "tr", "div"])
+                for item in items[:10]:  # 最多取10个结果
+                    text = item.get_text(strip=True)
+                    if text and len(text) > 2:
+                        # 检查是否有链接
+                        link = item.get("href")
+                        if link:
+                            full_link = f"https://poe2db.tw{link}" if link.startswith("/") else link
+                            results.append(f"- [{text}]({full_link})")
+                        else:
+                            results.append(f"- {text}")
+        
+        # 如果没有找到结构化结果，尝试提取页面中的装备名称
+        if not results:
+            # 查找所有包含物品名称的元素
+            item_names = soup.find_all(["h1", "h2", "h3", "span", "div"], text=True)
+            for name in item_names[:15]:
+                text = name.get_text(strip=True)
+                if text and len(text) > 3 and len(text) < 50:
+                    # 过滤掉常见导航词
+                    if text.lower() not in ["items", "search", "results", "home", "database"]:
+                        results.append(f"- {text}")
+        
+        if results:
+            return f"## 搜索结果：{keyword}\n\n" + "\n".join(results[:10])
+        else:
+            return "未找到相关装备信息"
+    
+    except Exception as e:
+        return f"❌ 搜索失败：{e}"
+
+
+def search_skill(keyword: str) -> str:
+    """
+    实时从 POE2 编年史搜索技能/天赋信息
+    :param keyword: 搜索关键词（如：技能名称、天赋等）
+    :return: 搜索结果文本
+    """
+    if not HAS_BS4:
+        return "❌ 需要安装 beautifulsoup4"
+    
+    try:
+        encoded_keyword = quote(keyword)
+        search_url = f"https://poe2db.tw/us/search?q={encoded_keyword}&type=skill"
+        
+        html = fetch_html(search_url)
+        if html is None:
+            return "❌ 网络请求失败"
+        
+        soup = BeautifulSoup(html, "html.parser")
+        
+        results = []
+        
+        # 查找技能相关结果
+        skill_elements = soup.select(".skill-name, .gem-name, .skill-header, h3.skill")
+        for element in skill_elements[:10]:
+            text = element.get_text(strip=True)
+            if text and len(text) > 2:
+                link = element.find_parent("a")
+                if link and link.get("href"):
+                    full_link = f"https://poe2db.tw{link['href']}" if link['href'].startswith("/") else link['href']
+                    results.append(f"- [{text}]({full_link})")
+                else:
+                    results.append(f"- {text}")
+        
+        # 兜底：通用搜索
+        if not results:
+            results = search_equipment(keyword)
+        
+        if isinstance(results, str) and results != "未找到相关装备信息":
+            return results
+        
+        return "未找到相关技能信息"
+    
+    except Exception as e:
+        return f"❌ 搜索失败：{e}"
 
 # 编年史各子页面（均为 Wiki 页面，优先爬取数据型页面）
 CHRONICLES_PAGES = {

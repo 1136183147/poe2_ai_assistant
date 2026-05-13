@@ -1,7 +1,7 @@
 # POE2 编年史做装数据（全版本）
 
 
-> 最后更新：2026-05-09 17:47
+> 最后更新：2026-05-11 11:28
 
 
 > 数据来源：https://poe2db.tw/us/
@@ -264,7 +264,7 @@ if possible to cause the entire Fusillade to create beams that
 
 ## 二、装备与底材
 Items - PoE2DB, Path of Exile Wiki us
-Требуется: Уровень 75, 56 Ловк, 56 Инт
+Items
 Items
 Foulborn
 Gems
@@ -321,6 +321,7 @@ Essence
 Splinter
 Catalysts
 Map Fragments
+Misc Map Items
 Expedition Logbooks
 Inscribed Ultimatum
 Tablet
@@ -335,16 +336,9 @@ Hideouts
 Strongbox
 Community Wiki
 Edit
-Класс предмета: Обувь
-Редкость: Редкий
-Kraken Pace
-Quickslip Shoes
-Уклонение: 110
-Энергетический щит: 42
-Требуется: Уровень 75, 56 Ловк, 56 Инт
-Уровень предмета: 83
-{ Префикс "Моментальные"  (Уровень: 1) — Скорость }
-35% повышение скорости передвижения
+Items
+Path of Exile 2 features 700 equipment base types and every single one has its own unique item you can find. You can augment your arsenal with new weapons such as Spears, Crossbows and Flails, as well as supplementary items like Focuses, Traps and redesigned Sceptres.
+Staves grant a spell as an implicit (e.g. Fireball, Unleash).
 Wikis Content is available under
 CC BY-NC-SA 3.0
 unless otherwise noted.
