@@ -253,3 +253,13 @@ def handle_special_command(text: str) -> str | None:
             return f"❌ 查价失败：{e}"
 
     return None
+
+
+# ── 对话历史管理 ──────────────────────────────
+_chat_history: list = []
+_MAX_HISTORY = 10
+
+def clear_chat_history():
+    """清空多轮对话历史"""
+    global _chat_history
+    _chat_history = []

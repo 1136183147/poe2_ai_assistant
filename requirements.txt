@@ -1,21 +1,18 @@
-# requirements.txt — POE2 AI 助手依赖
+# POE2 AI 助手依赖
 
 # 必装
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 schedule>=1.2.1
 
-# 截图识别（查价器使用）
-pillow>=10.0.0
-pytesseract>=0.3.10
+# 查价器（截图识别用）
+Pillow>=10.0.0
 
-# 可选：若需要爬取抖音等 JS 渲染页面
-# selenium>=4.18.0
+# OCR 识别（可选，截图查价用）
+# pytesseract>=0.3.10
+# 同时需要安装 Tesseract-OCR 程序：
+# https://github.com/tesseract-ocr/tesseract/releases
 
-# 可选：使用 OpenAI SDK（也可用内置 urllib，无需安装）
-# openai>=1.12.0
-
-# 注意：pytesseract 需要安装 Tesseract OCR 引擎
-# Windows: https://github.com/UB-Mannheim/tesseract/wiki
-# macOS: brew install tesseract
-# Linux: sudo apt-get install tesseract-ocr
+# 本地模型（可选，无需 API Key）
+# 安装 Ollama：https://ollama.com，然后：
+# ollama pull qwen2.5:7b

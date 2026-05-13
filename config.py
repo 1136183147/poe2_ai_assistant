@@ -101,6 +101,9 @@ TRADE_API = {
         "search_url": "https://www.pathofexile.com/api/trade2/search/poe2/{league}",
         "fetch_url": "https://www.pathofexile.com/api/trade2/fetch/{ids}",
         "exchange_url": "https://www.pathofexile.com/api/trade2/exchange/poe2/{league}",
+        "leagues_url": "https://www.pathofexile.com/api/trade2/data/leagues",
+        "trade_site": "https://www.pathofexile.com/trade2",
+        "name": "国际服",
     },
     "china": {
         "name": "国服（腾讯）",
@@ -108,6 +111,9 @@ TRADE_API = {
         "search_url": "https://poe.game.qq.com/api/trade2/search/poe2/{league}",
         "fetch_url": "https://poe.game.qq.com/api/trade2/fetch/{ids}",
         "exchange_url": "https://poe.game.qq.com/api/trade2/exchange/poe2/{league}",
+        "leagues_url": "https://poe.game.qq.com/api/trade2/data/leagues",
+        "trade_site": "https://poe.game.qq.com/trade2",
+        "name": "国服（腾讯）",
     },
     "tw": {
         "name": "台服/港澳",
@@ -115,6 +121,9 @@ TRADE_API = {
         "search_url": "https://pathofexile.tw/api/trade2/search/poe2/{league}",
         "fetch_url": "https://pathofexile.tw/api/trade2/fetch/{ids}",
         "exchange_url": "https://pathofexile.tw/api/trade2/exchange/poe2/{league}",
+        "leagues_url": "https://pathofexile.tw/api/trade2/data/leagues",
+        "trade_site": "https://pathofexile.tw/trade2",
+        "name": "台服/港澳",
     },
 }
 
