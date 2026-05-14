@@ -30,13 +30,6 @@ LLM_CONFIG = {
         "model": "qwen2.5:7b",
         "max_tokens": 1000,
     },
-    # 本地 Ollama（完全免费，无需 Key）
-    "qwen3.6": {
-        "api_key": "sk-ext-fYGF9-GFDGNVBVHpXz60rE3kBgoIMLfpUbVcCWdilUM",
-        "base_url": "https://pcbai.jiepei.com:9015/api/v1",
-        "model": "qwen2.5:7b",
-        "max_tokens": 1000,
-    },
 }
 
 # ==================== 版本配置 ====================
