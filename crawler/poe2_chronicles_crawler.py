@@ -13,12 +13,116 @@ except ImportError:
     HAS_BS4 = False
 
 
+# 英文到中文翻译映射表
+_EN_TO_CN_MAP = {
+    "Item": "物品",
+    "Items": "物品",
+    "Modifiers": "词缀",
+    "Modifier": "词缀",
+    "Quest": "任务",
+    "Quests": "任务",
+    "Patch Notes": "更新日志",
+    "Starts in": "开始于",
+    "Running for": "运行中",
+    "Sales": "销售",
+    "Mechanism": "机制",
+    "Mechanics": "机制",
+    "Skill": "技能",
+    "Skills": "技能",
+    "Gem": "宝石",
+    "Gems": "宝石",
+    "Crafting": "做装",
+    "Currency": "通货",
+    "Unique": "传奇",
+    "Base": "底材",
+    "Bases": "底材",
+    "Affix": "词缀",
+    "Affixes": "词缀",
+    "Rare": "稀有",
+    "Magic": "魔法",
+    "Normal": "普通",
+    "Weapon": "武器",
+    "Weapons": "武器",
+    "Armor": "护甲",
+    "Helmet": "头盔",
+    "Body Armour": "胸甲",
+    "Boots": "靴子",
+    "Gloves": "手套",
+    "Shield": "盾牌",
+    "Amulet": "项链",
+    "Ring": "戒指",
+    "Belt": "腰带",
+    "Staff": "法杖",
+    "Sword": "剑",
+    "Axe": "斧",
+    "Mace": "锤",
+    "Bow": "弓",
+    "Wand": "魔杖",
+    "Dagger": "匕首",
+    "Claw": "爪",
+    "Spear": "长矛",
+    "Sceptre": "权杖",
+    "Return of the Ancients": "远古归来",
+    "Ancients": "远古",
+    "League": "赛季",
+    "Passive": "天赋",
+    "Passives": "天赋",
+    "Ascendancy": "升华",
+    "Node": "节点",
+    "Nodes": "节点",
+    "Effect": "效果",
+    "Effects": "效果",
+    "Damage": "伤害",
+    "Defense": "防御",
+    "Life": "生命",
+    "Mana": "魔力",
+    "Energy Shield": "能量护盾",
+    "ES": "能量护盾",
+    "Resistance": "抗性",
+    "Resistances": "抗性",
+    "Critical": "暴击",
+    "Speed": "速度",
+    "Attack": "攻击",
+    "Cast": "施法",
+    "Cooldown": "冷却",
+    "Duration": "持续时间",
+    "Aura": "光环",
+    "Buff": "增益",
+    "Debuff": "减益",
+    "Curse": "诅咒",
+    "Minion": "召唤物",
+    "Totem": "图腾",
+    "Trap": "陷阱",
+    "Mine": "地雷",
+    "Projectile": "投射物",
+    "Aoe": "范围",
+    "AoE": "范围",
+    "Area": "范围",
+    "Radius": "半径",
+    "Chance": "几率",
+    "%": "百分比",
+}
+
+
+def _translate_text(text: str) -> str:
+    """将英文术语翻译成中文"""
+    result = text
+    for en, cn in _EN_TO_CN_MAP.items():
+        # 替换完整单词
+        result = result.replace(f" {en} ", f" {cn} ")
+        result = result.replace(f"^{en} ", f"{cn} ")
+        result = result.replace(f" {en}$", f" {cn}")
+        # 处理连字符情况
+        result = result.replace(f"-{en}-", f"-{cn}-")
+    return result
+
+
 # 实时搜索接口
 def search_equipment(keyword: str) -> str:
     """
-    实时从 POE2 编年史搜索装备/底材信息
+    实时从 POE2 编年史搜索装备/底材信息（带中文翻译）
     :param keyword: 搜索关键词（如：剑、法杖、底材等）
-    :return: 搜索结果文本
+    :return: 搜索结果文本（已翻译为中文）
     """
     if not HAS_BS4:
         return "❌ 需要安装 beautifulsoup4"
@@ -28,9 +132,9 @@ def search_equipment(keyword: str) -> str:
         encoded_keyword = quote(keyword)
         search_url = f"https://poe2db.tw/us/search?q={encoded_keyword}"
         
-        html = fetch_html(search_url)
+        html, status = fetch_html(search_url)
         if html is None:
-            return "❌ 网络请求失败"
+            return f"❌ 网络请求失败：{status}"
         
         soup = BeautifulSoup(html, "html.parser")
         
@@ -46,6 +150,8 @@ def search_equipment(keyword: str) -> str:
                 for item in items[:10]:  # 最多取10个结果
                     text = item.get_text(strip=True)
                     if text and len(text) > 2:
+                        # 翻译文本
+                        text = _translate_text(text)
                         # 检查是否有链接
                         link = item.get("href")
                         if link:
@@ -62,8 +168,13 @@ def search_equipment(keyword: str) -> str:
                 text = name.get_text(strip=True)
                 if text and len(text) > 3 and len(text) < 50:
                     # 过滤掉常见导航词
-                    if text.lower() not in ["items", "search", "results", "home", "database"]:
+                    if text.lower() not in ["items", "search", "results", "home", "database", "wiki"]:
+                        # 翻译文本
+                        text = _translate_text(text)
                         results.append(f"- {text}")
+        
+        # 过滤重复结果
+        results = list(dict.fromkeys(results))
         
         if results:
             return f"## 搜索结果：{keyword}\n\n" + "\n".join(results[:10])
@@ -72,6 +183,74 @@ def search_equipment(keyword: str) -> str:
     
     except Exception as e:
         return f"❌ 搜索失败：{e}"
+
+
+def get_base_items(category: str = "") -> dict:
+    """
+    获取装备底材数据
+    :param category: 底材类别（如：剑、法杖、护甲等）
+    :return: 底材数据字典
+    """
+    base_items = {
+        "剑": {
+            "category": "武器",
+            "items": [
+                {"name": "长剑", "level": 1, "damage": "物理", "slot": "单手"},
+                {"name": "双手剑", "level": 2, "damage": "物理", "slot": "双手"},
+                {"name": "细剑", "level": 4, "damage": "物理", "slot": "单手"},
+                {"name": "巨剑", "level": 12, "damage": "物理", "slot": "双手"},
+                {"name": "军刀", "level": 16, "damage": "物理", "slot": "单手"},
+            ],
+            "description": "高物理伤害，中等攻速，适合近战BD",
+        },
+        "法杖": {
+            "category": "武器",
+            "items": [
+                {"name": "法杖", "level": 1, "damage": "法术", "slot": "双手"},
+                {"name": "长杖", "level": 8, "damage": "法术", "slot": "双手"},
+                {"name": "权杖", "level": 4, "damage": "物理/法术", "slot": "单手"},
+                {"name": "魔杖", "level": 1, "damage": "法术", "slot": "单手"},
+            ],
+            "description": "高法术伤害，低攻速，适合法系BD",
+        },
+        "护甲": {
+            "category": "防具",
+            "items": [
+                {"name": "胸甲", "level": 1, "defense": "护甲", "slot": "身体"},
+                {"name": "头盔", "level": 1, "defense": "护甲/能量护盾", "slot": "头部"},
+                {"name": "手套", "level": 1, "defense": "护甲", "slot": "手部"},
+                {"name": "靴子", "level": 1, "defense": "护甲", "slot": "脚部"},
+                {"name": "腰带", "level": 1, "defense": "护甲", "slot": "腰部"},
+            ],
+            "description": "提供防御、抗性、生命，所有BD必备",
+        },
+        "首饰": {
+            "category": "饰品",
+            "items": [
+                {"name": "戒指", "level": 1, "slot": "手指", "count": 2},
+                {"name": "项链", "level": 1, "slot": "颈部", "count": 1},
+                {"name": "护身符", "level": 1, "slot": "护身符", "count": 1},
+            ],
+            "description": "提供多种属性加成，可灵活搭配",
+        },
+        "武器": {
+            "category": "武器",
+            "items": [
+                {"name": "剑", "type": "近战", "damage": "物理"},
+                {"name": "斧", "type": "近战", "damage": "物理"},
+                {"name": "锤", "type": "近战", "damage": "物理"},
+                {"name": "弓", "type": "远程", "damage": "物理"},
+                {"name": "匕首", "type": "近战", "damage": "物理/混沌"},
+                {"name": "爪", "type": "近战", "damage": "物理"},
+                {"name": "长矛", "type": "近战", "damage": "物理"},
+            ],
+            "description": "提供攻击伤害，根据类型有不同特点",
+        },
+    }
+    
+    if category:
+        return base_items.get(category, {})
+    return base_items
 
 
 def search_skill(keyword: str) -> str:

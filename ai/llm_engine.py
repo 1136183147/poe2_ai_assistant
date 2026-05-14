@@ -117,28 +117,159 @@ def _build_prompt(question: str, ctx: dict) -> str:
 
 def _fetch_from_web(question: str) -> str | None:
     """
-    优先从网上获取最新信息
+    优先从网上获取最新信息，根据问题意图返回有意义的答案
     返回：获取到的信息（字符串），如果获取失败或无相关信息则返回 None
     """
     try:
-        # 尝试从 POE2 编年史获取装备/技能信息
-        from crawler.poe2_chronicles_crawler import search_equipment, search_skill
+        from crawler.poe2_chronicles_crawler import search_equipment, search_skill, get_base_items
         
-        # 判断问题类型
+        # 分析问题意图
+        intent = _analyze_question_intent(question)
+        
+        if intent == "base_items":
+            # 用户想了解装备底材列表
+            return _get_base_items_info(question)
+            
+        elif intent == "equipment_detail":
+            # 用户想了解特定装备详情
+            result = search_equipment(question)
+            if result and "未找到" not in result:
+                return f"🌐 装备查询结果：\n\n{_format_equipment_result(result, question)}"
+        
+        elif intent == "skill_info":
+            # 用户想了解技能/天赋
+            result = search_skill(question)
+            if result and "未找到" not in result:
+                return f"🌐 技能查询结果：\n\n{result}"
+        
+        elif intent == "crafting_info":
+            # 用户想了解做装相关
+            return _get_crafting_info(question)
+        
+        # 默认：尝试通用搜索
         if "底材" in question or "装备" in question or "基底" in question:
             result = search_equipment(question)
             if result and "未找到" not in result:
-                return f"🌐 从 POE2 编年史获取：\n\n{result}"
+                return f"🌐 搜索结果：\n\n{_format_search_result(result, question)}"
         
         if "技能" in question or "天赋" in question:
             result = search_skill(question)
             if result and "未找到" not in result:
-                return f"🌐 从 POE2 编年史获取：\n\n{result}"
+                return f"🌐 搜索结果：\n\n{result}"
         
     except Exception as e:
         print(f"⚠️ 网络搜索失败：{e}")
     
     return None
+
+
+def _analyze_question_intent(question: str) -> str:
+    """分析问题意图"""
+    # 底材列表相关
+    if any(kw in question for kw in ["底材列表", "有什么底材", "底材有哪些", "获取底材", "装备底材"]):
+        return "base_items"
+    
+    # 装备详情相关
+    if any(kw in question for kw in ["装备详情", "装备属性", "装备介绍", "装备数据"]):
+        return "equipment_detail"
+    
+    # 技能/天赋相关
+    if any(kw in question for kw in ["技能介绍", "技能属性", "天赋树", "天赋点"]):
+        return "skill_info"
+    
+    # 做装相关
+    if any(kw in question for kw in ["做装", "打造", "工艺", "词缀"]):
+        return "crafting_info"
+    
+    return "general"
+
+
+def _get_base_items_info(question: str) -> str:
+    """获取装备底材信息"""
+    # 提取关键词
+    keywords = []
+    if "剑" in question:
+        keywords.append("剑")
+    elif "法杖" in question:
+        keywords.append("法杖")
+    elif "护甲" in question:
+        keywords.append("护甲")
+    elif "首饰" in question:
+        keywords.append("首饰")
+    elif "武器" in question:
+        keywords.append("武器")
+    
+    # 构建底材信息
+    base_items_info = {
+        "剑": {
+            "类别": "武器",
+            "常见底材": ["长剑", "双手剑", "细剑", "巨剑", "军刀"],
+            "属性特点": "高物理伤害，中等攻速",
+            "适用BD": "近战物理、流血、暴击",
+        },
+        "法杖": {
+            "类别": "武器",
+            "常见底材": ["法杖", "长杖", "权杖", "魔杖"],
+            "属性特点": "高法术伤害，低攻速",
+            "适用BD": "元素法术、召唤、诅咒",
+        },
+        "护甲": {
+            "类别": "防具",
+            "常见底材": ["胸甲", "头盔", "手套", "靴子", "腰带"],
+            "属性特点": "提供防御、抗性、生命",
+            "适用BD": "所有BD，尤其生存向",
+        },
+        "首饰": {
+            "类别": "饰品",
+            "常见底材": ["戒指", "项链", "护身符"],
+            "属性特点": "提供多种属性加成",
+            "适用BD": "所有BD",
+        },
+        "武器": {
+            "类别": "武器",
+            "常见底材": ["剑", "斧", "锤", "弓", "匕首", "爪", "长矛"],
+            "属性特点": "提供攻击伤害",
+            "适用BD": "近战、远程、法术",
+        },
+    }
+    
+    if keywords:
+        key = keywords[0]
+        if key in base_items_info:
+            info = base_items_info[key]
+            return f"## {key}底材信息\n\n" \
+                   f"**类别**: {info['类别']}\n\n" \
+                   f"**常见底材**:\n" \
+                   + "\n".join(f"- {item}" for item in info['常见底材']) + "\n\n" \
+                   f"**属性特点**: {info['属性特点']}\n\n" \
+                   f"**适用BD**: {info['适用BD']}\n\n" \
+                   f"🔗 详细数据：https://poe2db.tw/us/Items"
+    else:
+        # 返回所有底材概览
+        result = "## 装备底材分类概览\n\n"
+        for category, info in base_items_info.items():
+            result += f"### {category}\n"
+            result += f"- 类别: {info['类别']}\n"
+            result += f"- 常见底材: {', '.join(info['常见底材'][:3])}...\n\n"
+        result += "🔗 完整数据请访问：https://poe2db.tw/us/Items"
+        return result
+
+
+def _format_search_result(result: str, question: str) -> str:
+    """格式化搜索结果，使其更有意义"""
+    # 如果结果太简短，添加更多上下文
+    lines = [line for line in result.split('\n') if line.strip()]
+    
+    # 如果结果只是简单列表，添加解释
+    if len(lines) <= 10 and all(line.startswith('- ') for line in lines[1:]):
+        return f"根据你的问题「{question}」，找到以下相关信息：\n\n" + result + "\n\n💡 提示：如需更详细的信息，可以问具体的装备名称或类型。"
+    
+    return result
+
+
+def _format_equipment_result(result: str, question: str) -> str:
+    """格式化装备搜索结果"""
+    return result + "\n\n💡 提示：你可以进一步询问该装备的属性、获取方式或配装建议。"
 
 
 def answer_question(question: str) -> str:
@@ -185,6 +316,10 @@ def answer_question(question: str) -> str:
 
     save_chat_history(question, response)
     return response
+
+
+# 为了向后兼容，添加别名 ask_ai
+ask_ai = answer_question
 
 
 def handle_special_command(text: str) -> str | None:

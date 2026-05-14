@@ -72,8 +72,8 @@ CRAWLER_URLS = {
 
 # ==================== 悬浮窗配置 ====================
 FLOAT_WINDOW = {
-    "width":         420,
-    "height":        540,
+    "width":         450,
+    "height":        620,  # 增加高度以显示底部按钮
     "alpha":         0.92,
     "position":      "+20+80",
     "always_on_top": True,

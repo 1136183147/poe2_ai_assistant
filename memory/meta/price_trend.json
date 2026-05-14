@@ -1,7 +1,7 @@
 {
-  "_last_update": "2026-05-11 11:28",
-  "_source": "https://poe.ninja/poe2/builds/",
+  "_update": "2026-05-14 09:06",
+  "_league": "Dawn",
   "prices": {
-    "⚠️": "未能解析价格数据，请访问 https://poe.ninja/poe2/builds/"
+    "error": "Expecting value: line 1 column 1 (char 0)"
   }
 }

@@ -115,23 +115,36 @@ class POE2FloatWindow:
         self.chat.tag_config("ai",   foreground="#e0e0f0")
         self.chat.tag_config("warn", foreground="#fb923c")
 
-        # 输入框
+        # 输入框和发送按钮
         inp = tk.Frame(self.root, bg="#0d0d14")
-        inp.pack(fill=tk.X, padx=6, pady=(0, 4))
+        inp.pack(fill=tk.X, padx=6, pady=(0, 2))
+        
         self.entry = tk.Entry(inp, bg="#13131f", fg="white", insertbackground="white",
-                              relief="flat", font=("微软雅黑", 10), bd=6)
+                              relief="flat", font=("微软雅黑", 10), bd=4)
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
         self.entry.bind("<Return>", lambda e: self._send())
-        ttk.Button(inp, text="发送", command=self._send, style="Send.TButton").pack(side=tk.RIGHT)
+        
+        send_btn = ttk.Button(inp, text="发送", command=self._send, style="Send.TButton", width=4)
+        send_btn.pack(side=tk.RIGHT, padx=0)
 
-        # 功能按钮行
+        # 功能按钮行（统一大小）
         btns = tk.Frame(self.root, bg="#0d0d14")
-        btns.pack(fill=tk.X, padx=6, pady=(0, 6))
-        ttk.Button(btns, text="⚙ 配置",   command=self._open_config,   style="Cfg.TButton").pack(side=tk.LEFT, padx=2)
-        ttk.Button(btns, text="🕷 爬取",   command=self._crawl,         style="Crawl.TButton").pack(side=tk.LEFT, padx=2)
-        ttk.Button(btns, text="🗑 清屏",   command=self._clear,         style="Min.TButton").pack(side=tk.LEFT, padx=2)
-        ttk.Button(btns, text="💰 查价器", command=self._open_price,    style="Price.TButton").pack(side=tk.RIGHT, padx=2)
-        ttk.Button(btns, text="💾 导出",   command=self._export,        style="Mem.TButton").pack(side=tk.RIGHT, padx=2)
+        btns.pack(fill=tk.X, padx=6, pady=(0, 4))
+        
+        # 左侧按钮
+        left_btns = tk.Frame(btns, bg="#0d0d14")
+        left_btns.pack(side=tk.LEFT)
+        
+        ttk.Button(left_btns, text="⚙ 配置",   command=self._open_config,   style="Cfg.TButton", width=6).pack(side=tk.LEFT, padx=2)
+        ttk.Button(left_btns, text="🕷 爬取",   command=self._crawl,         style="Crawl.TButton", width=6).pack(side=tk.LEFT, padx=2)
+        ttk.Button(left_btns, text="🗑 清屏",   command=self._clear,         style="Min.TButton", width=6).pack(side=tk.LEFT, padx=2)
+        
+        # 右侧按钮
+        right_btns = tk.Frame(btns, bg="#0d0d14")
+        right_btns.pack(side=tk.RIGHT)
+        
+        ttk.Button(right_btns, text="💾 导出",   command=self._export,        style="Mem.TButton", width=6).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(right_btns, text="💰 查价器", command=self._open_price,    style="Price.TButton", width=7).pack(side=tk.RIGHT, padx=2)
 
     def _greet(self):
         from ai.llm_engine import _has_valid_api_key

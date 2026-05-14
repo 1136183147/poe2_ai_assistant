@@ -1,7 +1,9 @@
-[
-  {
-    "rank": "⚠️",
-    "name": "未能解析 BD 数据",
-    "usage": "请手动访问：https://poe.ninja/poe2/builds/"
-  }
-]
+{
+  "_update": "2026-05-14 09:06",
+  "_league": "Dawn",
+  "builds": [
+    {
+      "note": "BD获取失败: Expecting value: line 1 column 1 (char 0)"
+    }
+  ]
+}
